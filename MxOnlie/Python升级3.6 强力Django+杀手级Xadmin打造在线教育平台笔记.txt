@@ -1,0 +1,4225 @@
+【Django大项目】
+
+项目流程一览表：
+1.需求分析和model设计
+2.通过xadmin快速搭建后台管理系统
+3.用户注册功能实现
+4.课程机构功能实现
+5.课程功能实现
+6.课程讲师功能实现
+7.个人中心和全局搜索功能实现
+8.首页、全局功能细节和404以及500页面配置
+9.常见web攻击及防范
+10.xadmin的进阶开发
+11.把项目部署上线
+12.快速升级到python3.6+django1.11
+13.快速升级到python3.6+django2.0
+
+
+
+【virtualenv运用】
+作用：创建独立的python开发环境，使得多个python应用相互独立
+优点：使不同应用开发环境独立，环境升级不影响其他应用，也不会影响全局的python环境
+它可以防止系统中出现包管理混乱和版本的冲突
+
+virtualenv 环境名 （默认安装在当前目录下）
+cd 到Scripts目录下，输入activate.bat可切换至环境，输入deactivate.bat退出环境
+
+cd到目录太麻烦，因此安装virtualenvwrapper-win, 它会将所有的新建的virtualenv放到同一个目录下
+
+cmd命令行中如有There was a problem c onfirming the ssl certificate:HTTPSConnectionPool(host='pypi.tuna.tsinghua.edu.cn', por t=443): Max retries exceeded with url: /simple/pip/ (Caused by SSLError(的错误：
+Solution：把pip install virtualenv 改为
+pip install virtualenv -i http://pypi.douban.com/simple/ --trusted-host pypi.douban.com
+
+同理安装virtualenvwrapper-win ，然后输入命令mkvirtualenv testvir2之后会有c:/user/Administrator/Envs/testvir2下的虚拟环境被创建
+
+deactivate退出虚拟环境，workon列出所有虚拟环境，workon xxx切换至xxx环境
+
+
+ 
+
+
+
+【解决navicat连接数据库问题】
+MySQL 连接出现 Authentication plugin 'caching_sha2_password' cannot be loaded
+Solution:
+mysql> ALTER USER 'root'@'localhost' IDENTIFIED BY '123456' PASSWORD EXPIRE NEVER;
+Query OK, 0 rows affected (1.28 sec)
+
+mysql> ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY '123456';
+Query OK, 0 rows affected (0.20 sec)
+
+mysql> flush privileges;
+Query OK, 0 rows affected (0.21 sec)
+
+【Navicat基本操作】
+1.新建数据库 --> 字符集utf8--UTF-8 Unicode --> utf8_general_ci
+2.新建表 --> 输入数据后Ctrl+S输入表名 -->左边点开表后输入姓名按Ctrl+S保存数据 --> 左下角的+号可新增数据 --> 右键表设计表可添加字段 -->点表名右键刷新，或F5
+3.菜单栏点查询，输入sql语句如select * from users --> 运行
+4.数据库之间的表可以可以Ctrl+C,Ctrl+V
+5.工具 --> 数据传输
+
+【Django工程创建】
+1.新建app
+Tools --> Run manage.py task
+manage.py@djangostart > startapp message
+
+2.Mark Directory as Sources Root
+为导入包的路径的简化，右键目录mark directory as sources root，如存放各种app的apps目录，这样可将from apps.message import views 简化为 from message import views
+检验是否报错，右键根目录copy path, 打开cmd, workon testvir2,报错如下：
+(testvir2) E:\PyCharmProject\djangostart>python manage.py runserver
+Traceback (most recent call last):
+  File "manage.py", line 6, in <module>
+    from message import views
+ModuleNotFoundError: No module named 'message'
+
+3.第3章 通过留言版功能回顾django基础知识 -配置并加载数据库
+settings中配置navicat中创建的数据库，同步到DATABASES
+若在cmd下mysql-python驱动安装不了，则安装pymysql, 即pip install pymysql -i http://pypi.douban.com/simple/ --trusted-host pypi.douban.com
+菜单栏Tools --> Run manage.py Task --> 终端manage.py@djangostart > makemigrations --> migrate -->navicat上生成了诸多django默认数据表
+
+配置完后在菜单栏中 Run --> debug --> 网页输入网址
+
+
+
+orm的debug操作，打断点 --> 菜单栏Run --> debug (选择项目名）--> 网页刷新 -->(File - settings -Keymap - Eclipse 即快捷键配置) --> 鼠标悬停观察 --> F6 执行下一句 F8刷新（如果报错则看以下的解法：）
+
+【error's Solution】
+Error info:　　django.core.exceptions.ImproperlyConfigured: Requested setting DEFAULT_INDEX_TABLESPACE,
+ but settings are not configured. ……
+Solution：
+解决方法： 在文件最上方添加如下代码
+import os,django
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "djangostart.settings")# project_name 项目名称
+django.setup()
+
+【django的验证安全机制】
+Forbidden (403)
+CSRF verification failed. Request aborted.
+
+在html中form表单中添加允许验证，{%csrf_token%}
+
+4.第4章 需求分析和model设计
+1>. users-用户管理
+#继承django默认的auth_user
+from django.contrib.auth.models import AbstractUser
+
+class UserProfile(AbstractUser):
+    nick_name = models.CharField(max_length=50,verbose_name=u"昵称",default="")
+    birday = models.DateField(verbose_name=u"生日",null=True,blank=True)
+    gender = models.CharField(choices=(("male",u"男"),("female",u"女")),default="女")
+    address = models.CharField(max_length=100,default=u"")
+    mobile = models.CharField(max_length=11,null=True,blank=True)
+    image = models.ImageField(upload_to="image/%Y/%m",default=u"image/default.png",max_length=100)
+
+    class Meta:
+        verbose_name = "用户信息"
+        verbose_name_plural = verbose_name
+
+    # def __unicode__(self):
+    def __str__(self):	
+        return self.username
+
+# settings下添加自定义model
+AUTH_USER_MODEL = 'users.UserProfile'
+
+
+# 邮箱验证码
+class EmailVerifyRecord(models.Model):
+    code = models.CharField(max_length = 20,verbose_name=u"验证码 ")
+    email = models.EmailField(max_length=50,verbose_name=u"邮箱")
+    # 注册或找回密码均使用，用send_type加以区别
+    send_type = models.CharField(choices=(("register",u"注册"),("forget",u"找回密码")),max_length=10)
+    send_time = models.DateTimeField(default=datetime.now)  #now不能加括号以生成class实例化的时间，而不是modle编译的时间
+
+    class Meta:
+        verbose_name = u"邮箱验证码"
+        verbose_name_plural = verbose_name
+
+    def __str__(self):
+        return '{0}({1})'.format(self.code,self.email)
+
+# 轮播图
+class Banner(models.Model):
+    title = models.CharField(max_length=100,verbose_name = u"标题")
+    image = models.ImageField(upload_to="banner/%Y/%m",verbose_name=u"轮播图",max_length=100) #存储图片的路径地址
+    url = models.URLField(max_length=200,verbose_name=u"访问地址")
+    index = models.IntegerField(default=100,verbose_name=u"顺序")
+    add_time = models.DateTimeField(default=datetime.now,verbose_name=u"添加时间")
+
+    class Meta:
+        verbose_name = u'轮播图'
+        verbose_name_plural = verbose_name
+
+**点击PC IDM左侧的Structure，查看数据表，以上这些表是users特有的表，与其他app的models不产生交互关系，为防止循环引用而创建上层模型operation，将各交互数据表放于其内
+
+
+2>.course-课程管理
+# _*_ encoding:utf-8 _*_
+from __future__ import unicode_literals
+from datetime import datetime
+
+class Course(models.Model):
+    name=models.CharField(max_length=50,verbose_name=u"课程名")
+    desc = models.CharField(max_length=300,verbose_name=u"课程描述")
+    detail = models.TextField(verbose_name=u'课程详情')
+    degree = models.CharField(choices=(("cj","初级"),('zj','中级'),('gj','高级')),max_length=2)
+    learn_times = models.IntegerField(default=0,verbose_name=u'学习时长（分钟数）')
+    students = models.IntegerField(default=0,verbose_name=u"学习人数")
+    fav_nums = models.IntegerField(default=0,verbose_name=u"收藏人数")
+    image = models.ImageField(upload_to="courses/%Y/%m",verbose_name=u"封面图",max_length=100)
+    click_nums = models.IntegerField(default=0,verbose_name=u"点击数")
+    add_time = models.DateTimeField(default=datetime.now,verbose_name=u"添加时间")
+
+    class Meta:
+        verbose_name = u"课程"
+        verbose_name_plural = verbose_name
+
+
+class Lesson(models.Model):
+    course = models.ForeignKey(Course,verbose_name=u"课程")
+    name = models.CharField(max_length=100,verbose_name=u"章节名")
+    add_time = models.DateTimeField(default=datetime.now,verbose_name=u"添加时间")
+
+    class Meta:
+        verbose_name=u"章节"
+        verbose_name_plural = verbose_name
+
+
+class Video(models.Model):
+    course = models.ForeignKey(Lesson,verbose_name=u"章节")
+    name = models.CharField(max_length=100,verbose_name=u"视频名")
+    add_time = models.DateTimeField(default=datetime.now,verbose_name=u"添加时间")
+    
+    class Meta:
+        verbose_name=u"视频"
+        verbose_name_plural = verbose_name
+
+class CourseResource(models.Model):
+    course = models.ForeignKey(Course,verbose_name=u"课程")
+    name = models.CharField(max_length=100,verbose_name=u"名称")
+    download = models.FileField(upload_to="course/resource/%Y/%m",verbose_name=u"资源文件",max_length=100)
+    add_time = models.DateTimeField(default=datetime.now,verbose_name=u"添加时间")
+
+    class Meta:
+        verbose_name=u"课程资源"
+        verbose_name_plural = verbose_name
+
+
+
+
+3>.organization-机构和教师管理
+# _*_ encoding:utf-8 _*_
+from __future__ import unicode_literals
+from datetime import datetime
+
+
+class CityDict(models.Model):
+    name = models.CharField(max_length=20,verbose_name=u"城市")
+    desc = models.CharField(max_length=200,verbose_name=u"描述")
+    add_time = models.DateTimeField(default=datetime.now)
+
+    class Meta:
+        verbose_name = u"城市"
+        verbose_name_plural = verbose_name
+
+
+# 课程机构基本信息
+
+
+class CourseOrg(models.Model):
+    name = models.CharField(max_length=50,verbose_name=u"机构名称")
+    desc = models.TextField(verbose_name=u"机构描述")
+    click_nums = models.IntegerField(default=0,verbose_name=u"点击数")
+    fav_nums = models.IntegerField(default=0,verbose_name=u"收藏数")
+    image = models.ImageField(upload_to="org/%Y/%m",verbose_name=u"封面图",max_length=100)
+    address = models.CharField(max_length=150,verbose_name=u"机构地址")
+    city = models.ForeignKey(CityDict,verbose_name=u"所在城市")
+    add_time = models.DateTimeField(default=datetime.now)
+
+    class Meta:
+        verbose_name = u"课程机构"
+        verbose_name_plural = verbose_name
+
+
+# 教师基本信息
+
+
+class Teacher(models.Model):
+    org = models.ForeignKey(CourseOrg,verbose_name=u"所属机构")
+    name = models.CharField(max_length=50,verbose_name=u"教师名")
+    work_years = models.IntegerField(default=0,verbose_name=u"工作年限")
+    work_company = models.CharField(max_length=50,verbose_name=u"就职公司")
+    work_position = models.CharField(max_length=50,verbose_name=u"公司职位")
+    points = models.CharField(max_length=50,verbose_name=u"教学特点")
+    click_nums = models.IntegerField(default=0,verbose_name=u"点击数")
+    fav_nums = models.IntegerField(default=0,verbose_name=u"收藏数")
+    add_time = models.DateTimeField(default=datetime.now)
+
+    class Meta:
+        verbose_name = u"教师"
+        verbose_name_plural = verbose_name
+
+
+
+
+
+
+4>.operation-用户操作管理
+# _*_ encoding:utf-8 _*_
+from __future__ import unicode_literals
+
+from datetime import datetime
+
+#用户咨询
+
+
+class UserAsk(models.Model):
+    name = models.CharField(max_length=20,verbose_name=u"姓名")
+    mobile = models.CharField(max_length=11,verbose_name=u"手机")
+    course_name = models.CharField(max_length=55,verbose_name=u"课程名")
+    add_time = models.DateTimeField(default=datetime.now,verbose_name=u"添加时间")
+
+    class Meta:
+        verbose_name = u"用户咨询"
+        verbose_name_plural = verbose_name
+
+
+#用户评论
+
+
+class CourseComments(models.Model):
+    "课程评论"
+    user = models.ForeignKey(UserProfile,verbose_name=u"用户")
+    course = models.ForeignKey(Course,verbose_name=u"课程")
+    comments = models.CharField(max_length=200,verbose_name=u"评论")
+    add_time = models.DateTimeField(default=datetime.now,verbose_name=u"添加时间")
+
+    class Meta:
+        verbose_name = u"课程评论"
+        verbose_name_plural = verbose_name
+
+
+#用户收藏
+
+
+class UserFavorite(models.Model):
+    user = models.ForeignKey(UserProfile,verbose_name=u"用户")
+    fav_id = models.IntegerField(default=0,verbose_name=u"数据id")
+    fav_type = models.IntegerField(choices=((1,'课程'),(2,'课程机构'),(3,'讲师')),default=1,verbose_name=u"收藏类型")
+    add_time = models.DateTimeField(default=datetime.now,verbose_name=u"添加时间")
+
+    class Meta:
+        verbose_name = u"用户收藏"
+        verbose_name_plural = verbose_name
+
+
+# 用户消息
+
+
+class UserMessage(models.Model):
+    user = models.IntegerField(default=0,verbose_name=u"接收用户")
+    message = models.CharField(max_length=500,verbose_name=u"消息内容")
+    has_read = models.BooleanField(default=False,verbose_name=u"是否已读")
+    add_time = models.DateTimeField(default=datetime.now,verbose_name=u"添加时间")
+
+    class Meta:
+        verbose_name = u"用户消息"
+        verbose_name_plural = verbose_name
+
+
+#用户学习的课程
+
+
+class UserCourse(models.Model):
+    user = models.ForeignKey(UserProfile,verbose_name=u"用户")
+    course = models.ForeignKey(Course,verbose_name=u"课程")
+    add_time = models.DateTimeField(default=datetime.now,verbose_name=u"添加时间")
+
+    class Meta:
+        verbose_name = u"用户课程"
+        verbose_name_plural = verbose_name
+
+
+
+5>.右键新建的package(注意将项目中自行添加的如apps.xxx的apps去掉,一处位于installed apps另一些在导包处)，再Mark Directory as Sources Root ，为防止运行时报错，在settings下输入import sys ;  sys.path.insert(0,os.path.join(BASE_DIR,'apps'))
+
+安装pymysql + mysqlclient可以替换掉MySQLdb
+
+
+
+5.第5章 通过xadmin快速搭建后台管理系统
+1>.配置admin中文显示，settings --> LANGUAGE_CODE = 'zh-hans' ,TIME_ZONE = 'Asia/Shanghai' , USE_TZ = False (为True时django会把时间储存为UTC的时间)
+2>.当我们把各app放到包apps下后，如果makemigrations时报ValueError: too many values to unpack (expected 2)的错，就到migrations目录打开0001_initial.py后搜索apps并删之，Ctrl+H全局搜索apps并删之
+
+【error】IntegrityError: (1452, ‘Cannot add or update a child row: a foreign key constraint fails (mxonline.django_admin_log, CONSTRAINT django_admin_log_user_id_c564eba6_fk_auth_user_id FOREIGN KEY (user_id) REFERENCES auth_user (id))’)
+Solution:
+删除所有migrations目录下的0001_initial.py文件，删除数据库，新建数据库，manage.py@MxOnline > makemigrations --> manage.py@MxOnline > migrate --> OK
+
+##释放外键约束等SQL语句：
+mysql> SET FOREIGN_KEY_CHECKS=0;
+Query OK, 0 rows affected (0.00 sec)
+
+mysql> drop table users_userprofile;
+Query OK, 0 rows affected (1.34 sec)
+
+mysql> SET FOREIGN_KEY_CHECKS=1;
+Query OK, 0 rows affected (0.00 sec)
+
+
+2>.xadmin的使用
+pip install xadmin 无效后反复启闭cmd使用以下方式安装
+pip install https://github.com/sshwsfc/xadmin/tarball/master
+
+  settings.py下添加app：
+INSTALLED_APPS = [
+    'xadmin',
+    'crispy_forms',
+]
+
+  urls.py下修改如下：
+import xadmin
+
+urlpatterns = [
+    url(r'^xadmin/', xadmin.site.urls),
+]
+
+环境要求：
+pip install django==1.9
+pip install requests
+
+浏览器报错：
+(1146, "Table 'mxonline.xadmin_usersettings' doesn't exist")
+
+manage.py@MxOnline > makemigrations
+manage.py@MxOnline > migrate
+
+
+
+   安装包调用xadmin
+pip uninstall xadmin
+将源码xadmin放于新建的包extra_apps下，Mark Directory as Sources Root
+不管有任何报错，直接把xadmin删除然后重新拷贝
+  settings.py下添加如下语句：
+sys.path.insert(0,os.path.join(BASE_DIR,'extra_apps'))
+
+【pycharm新建文件的固定模板设定】
+File --> Settings --> 搜索框输入templates --> Python Script中设定模板如下：
+# _*_ coding:utf-8 _*_
+__author__ = 'positever'
+__date__ = '$DATE $TIME'
+
+  adminx的注册：
+在各app目录下分别新建adminx.py文件，并新建models中的同名类，继承自object，内容pass,具体格式如下：
+
+import xadmin
+
+from .models import EmailVerifyRecord
+
+class EmailVerifyRecordAdmin(object):
+    list_display = ['code','email','send_type','send_time']
+    search_fields = ['code','email','send_type']
+    list_filter = ['code','email','send_type','send_time']
+
+
+xadmin.site.register(EmailVerifyRecord,EmailVerifyRecordAdmin)
+
+  xadmin的全局配置：
+在users\adminx.py下新建类：
+
+from xadmin import views
+
+class BaseSetting(object):
+    enable_themes = True #使用主题功能
+    use_bootswatch = True
+
+# 更改后台默认显示信息
+class GlobalSetting(object):
+    site_title = "慕学后台管理系统"     # 左上角显示信息
+    site_footer = "慕学在线网"    # 最下面公司信息
+    menu_style = "accordion"    # 左侧表名按 APP 折叠
+
+xadmin.site.register(views.BaseAdminView,BaseSetting)
+xadmin.site.register(views.CommAdminView, GlobalSetting)
+
+
+
+  修改apps.py文件配置app的显示名称：
+
+# u -*- coding:utf-8 -*-
+from django.apps import AppConfig
+
+
+class OperationConfig(AppConfig):
+    name = 'apps.operation'
+    verbose_name=u"用户操作"
+  
+  __init__.py文件添加：
+default_app_config = "operation.apps.OperationConfig"
+
+# 命令行创建登录xadmin的超级用户
+python manage.py createsuperuser
+
+
+
+6>.第6章 用户注册功能实现
+  settings.py文件下添加静态路径：
+STATICFILES_DIRS=(
+    os.path.join(BASE_DIR,'static'),
+)
+  index.html文件的引用路径修改：
+将../images 全部替换为 /static/images
+将../js 全部替换为 /static/js
+搜索“登录”,href = '/login/'
+
+  login.html文件的引用路径修改：
+将../images 全部替换为 /static/images
+将../js 全部替换为 /static/js
+在form表单结束处加上安全验证机制{%csrf_token%}
+
+  urls.py文件添加模板引用：
+from django.views.generic import TemplateView  #用于处理静态文件
+
+    url('^$',TemplateView.as_view(template_name="index.html"),name="index"),
+    # url('^login/$',TemplateView.as_view(template_name="login.html"),name="login")
+    url('^login/$',login,name="login")
+
+ views.py中处理表单数据
+from django.contrib.auth import authenticate,login
+
+def login(request):
+    if request.method == 'POST':
+        user_name = request.POST.get("username","")
+        pass_word = request.POST.get("password","")
+        user = authenticate(username=user_name,password=pass_word)
+        if user is not None:
+            login(request,user)
+            return render(request,"index.html")
+        else:
+            return render(request,"login.html",{"msg":"用户名或密码错误！"})
+    elif request.method == 'GET':
+        return render(request,"login.html",{})
+
+  index.html的登录样式更改：
+{% if request.user.is_authenticated %} 
+      <div class="top">……</div>    {#下一个top#}
+{% else %}
+      <div class="top">……</div>    {#上一个top#}
+{% endif %}
+
+在 user = authenticate(username=user_name,password=pass_word)处打上断点，输入用户名密码后，当按F6, debug到login(request,user)时报错，PyCharm在函数def login(request):的login打了下划线，鼠标移动上去显示  Rename的提示，原因是函数内的login有两个参数，执行调用了带一个参数的同名函数login(request）,因此将login函数重命名为userlogin(request)即可
+
+
+
+  自定义authenticate方法，实现邮箱密码登录：
+（实现原理——新建一个类继承自ModelBackend，重写父类的authenticate方法）
+  users/views.py:
+
+from django.contrib.auth.backends import ModelBackend
+from .models import UserProfile
+from django.db.models import Q  #完成邮箱，用户名或手机号验证的并集操作
+from django.views.generic.base import View  # 用form实现登录之自定义类
+
+class CustomBackend(ModelBackend):
+    def authenticate(self, username=None, password=None, **kwargs):
+        try:
+            user = UserProfile.objects.get(Q(username=username)|Q(email=username))
+            if user.check_password(password):    #UserProfile继承自AbstractUser，其中有check_password方法
+                return user
+        except Exception as e:
+            return None
+
+  settings.py添加如下代码:
+
+AUTHENTICATION_BACKENDS = (
+    'users.views.CustomBackend',
+)
+
+在try和user = UserProfile.objects.get(username=username)两处打点，浏览器登录login页面，几下F6后再F8则浏览器成功登录，然后准备实现当传进来的username无论是邮箱，用户名或手机号时都能验证的功能
+
+退出登录并且……/xadmin注销用户，输入邮箱验证登录
+若输入有误则在login.html返回字符串msg
+<div class="error btns login-form-tips" id="jsLoginTips">{{ msg }}</div>
+
+
+基于类来完成，基于类可以自定义函数，调用更方便，点进父类View查看各方法
+
+  urls.py添加如下代码：
+from users.views import LoginView
+
+url('^login/$',LoginView.as_view(),name="login")
+
+  users/views.py添加如下代码：
+
+class LoginView(View):
+    def get(self,request):
+        return render(request, "login.html", {})
+    def post(self,request):
+        user_name = request.POST.get("username", "")
+        pass_word = request.POST.get("password", "")
+        user = authenticate(username=user_name, password=pass_word)
+        if user is not None:
+            login(request, user)
+            return render(request, "index.html")
+        else:
+            return render(request, "login.html", {"msg": "用户名或密码错误！"})
+
+为解放post函数字段判断的负担，引入form验证参数
+在users目录下新建forms.py文件
+  from django import forms
+
+class LoginForm(forms.Form):
+    username = forms.CharField(required = True) #字段不能为空
+    password = forms.CharField(required = True,min_length=5)  #若密码长度小于5则无需访问数据库而直接验证失败，从而减轻了程序负担
+
+  users/views.py:
+from .forms import LoginForm
+
+  def post(self,request): #添加如下，注意login.html中的username与password字段必须与forms.py中的两个字段相同，这样才会起到验证字段的效果
+        login_form = LoginForm(request.POST)
+        if login_form.is_valid():
+            pass
+
+在if 语句前打断点，当浏览器所返回username字段为空时，鼠标悬停后的打开项中的errors中就有这个字段不能为空的提示
+
+然后将if语句以下内容缩进包含进if语句
+
+  login.html中加入class字段errorput在前端打印错误消息
+<div class="form-group marb20 {% if login_form.errors.username %}errorput{% endif %}">
+<div class="form-group marb8 {% if login_form.errors.username %}errorput{% endif %}">
+
+<div class="error btns login-form-tips" id="jsLoginTips">{% for key,error in login_form.errors.items %}{{ key }}:{{ error }}{% endfor %}{{ msg }}</div>
+
+
+  users/views.py更新代码如下：
+
+class LoginView(View):
+    def get(self,request):
+        return render(request, "login.html", {})
+    def post(self,request):
+        login_form = LoginForm(request.POST)
+        if login_form.is_valid():
+            user_name = request.POST.get("username", "")
+            pass_word = request.POST.get("password", "")
+            user = authenticate(username=user_name, password=pass_word)
+            if user is not None:
+                login(request, user)
+                return render(request, "index.html")
+            else:
+                return render(request, "login.html", {"msg": "用户名或密码错误！"})
+        else:
+            return render(request, "login.html", {"login_form":login_form})
+
+
+  session和cookies自动登录机制
+    urls.py下添加url:
+url('^register/$',RegisterView.as_view(),name="register"),
+
+   index.html内修改代码如下：
+<a style="color:white" class="fr registerbtn" href="{% url 'register' %}">注册</a>
+<a style="color:white" class="fr loginbtn" href="/login/">登录</a>
+
+  修改register.html中css与js文件引用路径：
+<html>
+{% load staticfiles %}
+<head>
+
+<link rel="stylesheet" type="text/css" href="{% static 'css/reset.css' %}">
+当我们修改settings.py下的STATIC_URL = '/static/'字段名/static/时，href引用会自动转换
+
+    users/views.py下添加RegisterView类:
+
+class RegisterView(View):
+    def get(self,request):
+        return render(request, "register.html", {})
+
+
+    验证码插件：
+github上的安装方法
+https://django-simple-captcha.readthedocs.io/en/latest/usage.html#installation
+
+(mxonline) C:\Users\Administrator>pip install django-simple-captcha==0.4.6
+
+  settings.py下在INSTALLED_APPS中添加'captcha',
+
+  urls.py下添加如下代码：
+url(r'^captcha/',include('captcha.urls')),
+
+  同步到数据库：
+  manage.py@MxOnline > makemigrations
+
+  manage.py@MxOnline > migrate
+
+   
+
+  添加forms.py中的注册验证类RegisterForm
+
+from captcha.fields import CaptchaField
+
+class RegisterForm(forms.Form):
+    email = forms.EmailField(required=True)  #对前端传递过来的email进行验证，会生成一个html代码
+    password = forms.CharField(required = True,min_length=5)
+    captcha = CaptchaField()  #会生成一个html代码
+
+
+  在users/views.py中调用注册验证类RegisterForm:
+
+from .forms import LoginForm,RegisterForm
+
+class RegisterView(View):
+    def get(self,request):
+        register_form = RegisterForm()
+        return render(request, "register.html", {"register_form":register_form})
+
+  在register.html中调用注册验证类的实例化对象：
+
+  <label>验&nbsp;证&nbsp;码</label>
+   {{ register_form.captcha }}    #调用对象register_form的方法captcha中生成的html代码输入框
+
+
+右键浏览器查看源码：则label标签下生成了img标签，其中<input>标签type=hidden，是为了将用户输入的value值带回后台数据库captcha_captchastore表中之前生成的value值进行匹配验证，后一个input标签值是用户输入的验证码
+<img src="/captcha/image/2f3f82e5f7a054bf5caa93b9b0bb6cc308fb7011/" alt="captcha" class="captcha" /> <input id="id_captcha_0" name="captcha_0" type="hidden" value="2f3f82e5f7a054bf5caa93b9b0bb6cc308fb7011" /> <input autocomplete="off" id="id_captcha_1" name="captcha_1" type="text" />
+
+  用户提交验证码debug调试：
+  编写post方法：
+  def post(self,request):
+       register_form = RegisterForm(request.POST)
+       if register_form.is_valid():
+            pass
+
+  修改register.html的form表单提交方式与提交路径：
+<form id="email_register_form" method="post" action="{% url 'register' %}" autocomplete="off">
+  为防止浏览器403禁止访问，CSRF验证失败. 相应中断.的错误需在html中加入{% csrf_token %}
+
+  在if语句处打断点鼠标悬停调试，注意register.html中两个input框的name属性定义名称必须与forms.py中RegisterForm类定义的两个form对象名称保持一致，这样才能起到form验证的目的
+
+ 则在errors中显示INVALID CAPTCHA字段
+  
+  forms.py自定义错误信息:    
+captcha = CaptchaField(error_messages={"invalid":r"验证码错误！"})
+
+
+
+
+  给邮箱发送验证码进行激活功能的实现：
+在目录apps下新建包utils,在其中新建email_send.py文件,编写代码如下：
+  # 生成指定位数的随机字符串
+def random_str(randomlength=8):
+    str = ''
+    chars = 'AaBbCcDdEeFfGgHhIiJjKkLlMmNnOoPpQqRrSsTtUuVvWwXxYyZz0123456789'
+    length = len(chars) - 1
+    random = Random()
+    for i in range(randomlength):
+        str += chars[random.randint(0,length)]
+    return str
+
+def send_register_email(email,send_type="register"):
+    email_record = EmailVerifyRecord()
+    code = random_str(16)
+    email_record.code = code
+    email_record.email = email
+    email_record.send_type = send_type
+    email_record.save()
+
+    #利用django内部函数给邮箱发送邮件
+    email_title = ""
+    email_body = ""
+
+    if send_type == "register":
+        email_title = "慕学在线网注册激活链接"
+        email_body = "请点击下面的链接激活你的账号：http://127.0.0.1:8000/active/{0}".format(code)
+
+        send_status = send_mail(email_title,email_body,EMAIL_FROM,[email])
+        if send_status:
+            pass
+
+在if send_type 处打断点，鼠标在send_status处悬浮，若发送成功则返回1
+
+ settings.py中配置邮件发送者：
+注册新浪邮箱，点击设置 --> 左侧客户端pop/imap/smtp --> 授权码状态点开启 -->拷贝smtp.sina.com
+【新浪邮箱授权码：0d195b012365d5a2】
+
+  # 配置邮件发送者
+EMAIL_HOST = "smtp.sina.com"
+EMAIL_PORT = 25
+EMAIL_HOST_USER = "positever@sina.com"
+EMAIL_HOST_PASSWORD = "15250062547aA"
+EMAIL_USE_TLS = False
+EMAIL_FROM = "positever@sina.com"
+
+
+
+  编辑users/views.py实现用户注册功能（需取出前端用户输入的数据，然后取出userprofile中的字段进行赋值，其中前端明文密码需要加密后再进行保存，然后调用send_register_email方法）:
+from django.contrib.auth.hashers import make_password
+from utils.email_send import send_register_email
+
+class RegisterView(View):
+    def get(self,request):
+        register_form = RegisterForm()
+        return render(request, "register.html", {"register_form":register_form})
+    
+    def post(self,request):
+        register_form = RegisterForm(request.POST)
+        if register_form.is_valid():
+            user_name = request.POST.get("email","")
+            pass_word = request.POST.get("password","")
+            user_profile = UserProfile()
+            user_profile.username = user_name
+            user_profile.email = user_name
+            user_profile.password = make_password(pass_word)
+            user_profile.save()
+
+            send_register_email(user_name,"register")
+
+
+
+当发生SMTPAuthenticationError at /register/的错误后,需要修改settings下的EMAIL_HOST_PASSWORD = "0d195b012365d5a2"  即把密码换成授权码
+
+
+  进一步完善users/views.py，使做出注册成功与否的操作：
+
+class RegisterView(View):
+    def get(self,request):
+        register_form = RegisterForm()
+        return render(request, "register.html", {"register_form":register_form})
+    
+    def post(self,request):
+        register_form = RegisterForm(request.POST)
+        if register_form.is_valid():
+            user_name = request.POST.get("email","")
+            pass_word = request.POST.get("password","")
+            user_profile = UserProfile()
+            user_profile.username = user_name
+            user_profile.email = user_name
+            user_profile.password = make_password(pass_word)
+            user_profile.save()
+
+            send_register_email(user_name,"register")
+            return render(request,"login.html")
+        else:
+            return render(request,"register.html",{"register_form":register_form})
+
+
+  在register.html中添加错误后focus聚焦输入框以及错误提示信息（且input框的value值为register_form.email等，构建轻松的用户回填体验）：
+             <input  type="text" id="id_email" name="email" value="{{register_form.email.value}}" placeholder="请输入您的邮箱地址" />
+             <input type="password" id="id_password" name="password"  value="{{register_form.password.value}}" placeholder="请输入6-20位非中文字符密码" />
+<div class="form-group marb20 {% if register_form.errors.email %}errorput{% endif %}">
+<div class="form-group marb8 {% if register_form.errors.password %}errorput{% endif %}">
+<div class="form-group marb8 captcha1 {% if register_form.errors.captcha %}errorput{% endif %}">
+
+<div class="error btns" id="jsEmailTips">{% for key,error in register_form.errors.items %}{{ key }}:{{ error }}{% endfor %}{{ msg }}</div>
+
+
+  实现用户通过邮箱激活的功能：
+  在RegisterView注册类的def post函数中添加  user_profile.is_active = False   #UserProfile的父类AbstractUser中的is_active默认为True
+
+  在urls.py里添加active激活路径：
+from users.views import LoginView,RegisterView,ActiveUserView
+
+url(r'^active/(?P<active_code>.*)/$',ActiveUserView.as_view(),name="user_active"),   #?P提取变量Parameters的意思,正则表达式.*会把active后面的字符全部取出并给到尖括号里
+
+  在users/views.py中添加ActiveUserView激活类如下：
+from .models import UserProfile,EmailVerifyRecord
+
+class ActiveUserView(View):
+    def get(self,request,active_code):
+        all_records = EmailVerifyRecord.objects.filter(code=active_code)
+        if all_records:
+            for record in all_records:
+                email = record.email
+                user = UserProfile.objects.get(email=email)
+                user.is_active = True
+                user.save()
+        return render(request,'login.html')
+
+
+  在LoginView登录类中添加激活与否的if判断语句：
+
+            if user is not None:
+                if user.is_active:
+                    login(request, user)
+                    return render(request, "index.html")
+                else:
+                    return render(request,"login.html",{"msg":"用户未激活，请到您的邮箱激活！"})
+
+
+  找回密码功能的实现：
+在用户注册的时候先到数据库中查询判断邮箱是否存在，在users/views.py中RegisterView注册类的def post方法里添加代码如下：
+  user_name = ……
+  if UserProfile.objects.filter(email=user_name):
+         return render(request, "register.html", {"register_form":register_form,"msg":"用户已经存在！"})
+
+  如果邮箱中的激活地址失效则返回失效信息，在ActiveUserView类中添加else语句如下：
+
+        else:
+            return render(request,'active_fail.html')
+
+  在urls.py中添加url如下：
+from users.views import LoginView,RegisterView,ActiveUserView,ForgetPwdView
+
+url(r'^forget/$',ForgetPwdView.as_view,name="forget_pwd"),
+
+  在users/views.py中新建忘记密码类ForgetPwdView代码如下:
+class ForgetPwdView(View):
+    def get(self,request):
+        return render(request,'forgetpwd.html',{})
+
+  修改login.html页面的代码如下：
+    <a class="fr" href="{% url 'forget_pwd' %}">忘记密码？</a>
+
+  重新定义forgetpwd.html中静态文件路径：
+<html>
+{% load staticfiles %}
+<head>
+
+	<link rel="stylesheet" type="text/css" href="{% static 'css/reset.css' %}">
+	<link rel="stylesheet" type="text/css" href="{% static 'css/login.css' %}">
+images 与 js 标签的替换同上，此处略
+
+在浏览器login页面点进忘记密码进入html
+
+  定义找回密码的form,在users/forms.py下添加如下代码：
+class ForgetForm(forms.Form):
+    email = forms.EmailField(required=True)  #对前端传递过来的email进行验证
+    captcha = CaptchaField(error_messages={"invalid":r"验证码错误！"})
+
+  类比RegisterView注册类，在users/views.py下的ForgetPwdView忘记密码类中的get函数中先实例化一个form对象再传入html文件中：
+      def get(self,request):
+        forget_form = ForgetForm()
+        return render(request,'forgetpwd.html',{"forget_form":forget_form})
+
+  在forgetpwd.html文件中调用form对象forget_form的验证码方法captcha:
+         <label>验&nbsp;证&nbsp;码</label>
+          {{ forget_form.captcha }}
+
+在浏览器login页面点进忘记密码进入html
+
+  接下来在users/views.py下的ForgetPwdView忘记密码类中写一个处理用户提交数据的post函数,用户输入合法后将用户返回的数据取出并传入发送邮件的函数中，发送成功后返回发送成功的页面，若用户输入不合法，则重新返回忘记密码页面并作出相关错误提示：
+       def post(self,request):
+        forget_form = ForgetForm(request.POST)
+        if forget_form.is_valid():
+            email = request.POST.get("email","")
+            send_register_email(email,"forget")
+            return render(request,'send_success.html')
+        else:
+            return render(request, 'forgetpwd.html', {"forget_form": forget_form})
+
+
+  修改forgetpwd.html中form表单的提交方式与提交地址（注意input标签中的name值必须与forms对象名一致以达到验证的目的，以及在form表单中添加django安全验证机制中的{% csrf_token %}）：
+<form id="jsFindPwdForm" method="post" action="{% url 'forget_pwd' %}" autocomplete="off">
+
+     {% csrf_token %}
+
+  在send_register_email函数中添加判断向用户发送密码重置邮件的功能：
+
+    elif send_type == "forget":
+        email_title = "慕学在线网密码重置链接"
+        email_body = "请点击下面的链接重置密码：http://127.0.0.1:8000/reset/{0}".format(code)
+
+        send_status = send_mail(email_title, email_body, EMAIL_FROM, [email])
+        if send_status:
+            pass
+
+  
+  在forgetpwd.html中添加div错误选中与错误提示字段，以及用户填错后的value值的自动回填：
+       <div class="form-group marb20 {% if forget_form.errors.email %}errorput{% endif %}">
+       <input type="text" id="account" name="email" value="{{ forget_form.email.value }}" placeholder="邮箱" />
+
+<div class="error btns" id="jsForgetTips">{% for key,error in forget_form.errors.items %}{{ key }}:{{ error }}{% endfor %}{{ msg }}</div>
+
+  在forget_form处打断点进行调试
+
+
+  在urls.py中配置一个处理重置密码链接的url：
+from users.views import LoginView,RegisterView,ActiveUserView,ForgetPwdView,ResetView
+
+    url(r'^reset/(?P<reset_code>.*)/$',ResetView.as_view(),name="reset_pwd"),   #?P提取变量Parameters的意思,正则表达式.*会把reset后面的字符全部取出并给到尖括号里
+
+
+  在users/views.py下添加ResetView重置密码类:
+class ResetView(View):
+    def get(self,request,reset_code):
+        all_records = EmailVerifyRecord.objects.filter(code=reset_code)
+        if all_records:
+            for record in all_records:
+                email = record.email
+                # 为使服务器知道是哪个用户进行了改密操作，需传入该用户的邮箱
+                return render(request,'password_reset.html',{'email':email})
+        else:
+            return render(request,'active_fail.html')
+        return render(request,'login.html')
+
+
+  在password_reset.html的中间添加hidden类型的input标签以返回用户的邮箱：
+                <input type="hidden" value="{{ email }}">
+
+在 all_records = ……处打断点进行调试，找到邮箱中生成的改密链接进行访问
+
+  在password_reset.html下修改form表单的提交方式与提交路径：
+        <form id="reset_password_form" action="{% url 'reset_pwd' %}" method="post">
+
+  在users/views.py下的ResetView重置密码类中添加post函数接收并处理用户在重置密码后返回的数据（返回的数据是input框可用form进行用户输入合法性验证）：
+
+  在forms.py中添加ModifyPwdForm修改密码表单类如下：
+class ModifyPwdForm(forms.Form):
+    password1 = forms.CharField(required = True,min_length=5)
+    password2 = forms.CharField(required = True,min_length=5)
+
+ def post(self,request):
+        modify_form = ModifyPwdForm(request.POST)
+        if modify_form.is_valid():
+            pwd1 = request.POST.get("password1","")
+            pwd2 = request.POST.get("password2", "")
+            email = request.POST.get("email","")
+            if pwd1 != pwd2:
+                return render(request,'password_reset.html',{'email':email,"msg":"密码不一致"})
+            user = UserProfile.objects.get(email=email)
+            user.password = make_password(pwd2)
+            user.save()
+
+            return render(request, 'login.html')
+        else:
+            email = request.POST.get("email", "")
+            return render(request, 'password_reset.html', {'email': email, "modify_form":modify_form})
+
+
+
+而用户在重置密码后返回的数据中带有随机编码字段reset_code,在passoword_reset.html中的form表单的action地址会报The following arguments are missing "reset_code"的错误，原因是post的时候不能重用View,因为View必须要接收一个reset_code的参数，因此需要新建一个ModifyPwdView修改密码类来处理用户提交的信息:
+
+  在urls.py下新建url如下：
+from users.views import LoginView,RegisterView,ActiveUserView,ForgetPwdView,ResetView,ModifyPwdView
+
+    url(r'^modify_pwd/$', ModifyPwdView.as_view(), name="modify_pwd"),
+
+
+把password_reset.html下form表单的action提交地址修改为新建的url地址，并加上验证机制{% csrf_token %}：
+        <form id="reset_password_form" action="{% url 'modify_pwd' %}" method="post">
+        {% csrf_token %}
+
+  把函数def post(self,request):放到新建的class ModifyPwdView(View):类下
+                  ……
+
+在 modify_form表单对象处打断点进行调试，登录邮箱中重置密码的链接进行修改密码的操作
+
+
+
+
+
+7>.第7章 课程机构功能实现
+Django Template模板继承：
+为了使各网页使用公共的页眉页脚，需要创建一个带有header与footer的的父模板base.html
+把org-list.html中的内容拷贝到base.html,然后在其中首先加载静态文件路径然后引用js、css、images：
+
+<html>
+    {% load staticfiles %}
+<head>
+
+<title>{% block title %}课程机构列表 - 慕学在线网{% endblock %}</title>
+
+	<link rel="stylesheet" type="text/css" href="{% static 'css/reset.css' %}">
+	……
+
+{#    用户自定义css文件#}
+    {% block custom_css %}{% endblock %}
+
+{#    用户自定义js文件#}
+    {% block custom_js %}{% endblock %}
+
+  打开org-list网页,F12查看网页各组织，在base.html中建立block:
+给header下面的提示部分建立block： custom_bread
+再给网页主体部分建立block：content
+
+                <script src="{% static 'js/selectUi.js' %}" type='text/javascript'></script>
+	……
+
+	<a href="index.html"><img class="fl" src="{% static 'images/logo.jpg' %}"/></a>
+	……
+
+  清空org-list.html并继承自base.html：
+{% extends 'base.html' %}
+{% block title %}课程机构列表 - 慕学在线网{% endblock %}
+
+  在url.py中新建org-list.html的url引用定位符,其调用类中会添加中文注释所以需指定字符编为utf8：
+# _*_ coding:utf-8 _*_
+
+#     课程机构首页
+from organization.views import OrgView
+
+url(r'^org_list/$', OrgView.as_view(), name="org_list"),
+
+  在organization\views.py中添加机构组织类：
+# _*_ coding:utf-8 _*_
+ 
+class OrgView(View):
+    """
+        课程机构列表功能
+    """
+    def get(self,request):
+        return render(request,"org-list.html",{})
+
+
+  因为base.html的主体内容block:content要被许多子模板重写，所以将base.html的content内容剪切到org-list.html的content里
+
+浏览器报错如下是因为在org-list.html中没有加载staticfiles静态文件路径：
+Invalid block tag on line 66: 'static', expected 'endblock'. Did you forget to register or load this tag?
+
+在org-list.html中加载静态文件路径：
+{% load staticfiles %}
+
+
+  在xadmin中添加城市与课程机构信息：
+
+其中课程机构上传图片的路径需要在settings.py中进行配置：
+
+MEDIA_URL = '/media/'
+MEDIA_ROOT = os.path.join(BASE_DIR,'media')
+
+  在xadmin中添加10家课程机构，为了在网页中按机构类别进行筛选，需要在organization\models.py中添加机构类别对象(属性):
+    catgory = models.CharField(dafault="pxjg",verbose_name=u"机构类别",max_length=20,choices=(("pxjg","培训机构"),("gr","个人"),("gx","高校")))
+
+   然后提交数据库更改manage.py@MxOnline > makemigrations organization
+ 		manage.py@MxOnline > migrate organization
+
+  在organization\views.py中从数据库取出所有的课程机构与城市并传入到org-list.html中：
+
+class OrgView(View):
+    """
+        课程机构列表功能
+    """
+    def get(self,request):
+        # 课程机构
+        all_orgs = CourseOrg.objects.all()
+        # 城市
+        all_citys = CityDict.objects.all()
+
+        return render(request,"org-list.html",{
+            "all_orgs":all_orgs,
+            "all_citys":all_citys
+        })
+
+  在org-list.html中定位到‘所在地区’遍历所有的城市：
+
+   {% for city in all_citys %}
+            <a href="?city=1&ct="><span class="">{{city.name}}</span></a>
+   {% endfor %}
+
+
+若报如下错误：
+RuntimeError: Model class organization.models.CityDict doesn't declare an explicit app_label and either isn't in an application in INSTALLED_APPS or else was imported before its application was loaded.
+Solution:则设置apps.py文件下的name = 'organization'，即去掉apps.xxx的apps
+
+
+  在org-list.html中定位到<div class="layout">中，遍历所有的城市：
+
+{% for course_org in all_orgs %}
+                <dl class="des difdes"...>
+{% endfor %}
+
+  修改城市信息：
+
+  在TEMPLATES中的上下文处理器中添加如下代码：
+django.core.context_processors.media   # django会自动将MEDIA_URL的路径注册到html文件中
+     
+     <img width="200" height="120" class="scrollLoading" data-url="{{ MEDIA_URL }}{{ course_org.image }}"  src="{% static 'images/pixel.gif' %}"/>
+
+
+  在urls.py中添加处理media静态文件的方法：
+
+from django.views.static import serve
+from MxOnline.settings import MEDIA_ROOT
+
+    #  配置上传文件的访问处理函数
+    url(r'^media/(?P<path>.*)/$',serve,{"document_root":MEDIA_ROOT})
+
+
+  在网页中显示课程机构的数量：
+  先在views.py中进行数量计算，然后传入org-list.html中
+org_nums = all_orgs.count()
+
+  在org-list.html进行org_nums 的调用，定位到‘共’字：
+<div class="all">共<span class="key">{{org_nums}}</span>家</div>
+
+  
+  列表分页功能：
+在github中搜索pure pagination
+在终端安装
+(mxonline) C:\Users\Administrator>pip intall django-pure-pagination
+
+  放入apps列表：
+INSTALLED_APPS = (
+  ...
+  'pure_pagination',
+)
+
+
+  修改organization\views.py:
+class OrgView(View):
+    """
+        课程机构列表功能
+    """
+    def get(self,request):
+        # 课程机构
+        all_orgs = CourseOrg.objects.all()
+        org_nums = all_orgs.count()
+        # 城市
+        all_citys = CityDict.objects.all()
+
+        # pure-pagination对课程机构进行分页
+        try:
+            page = request.GET.get('page', 1)
+        except PageNotAnInteger:
+            page = 1
+
+
+        # Provide Paginator with the request object for complete querystring generation
+
+        p = Paginator(all_orgs, 5, request=request)   # 其中per_page表示每页显示的个数
+
+        orgs = p.page(page)
+
+        return render(request,'org-list.html',{
+            "all_orgs":orgs,
+            "all_citys":all_citys,
+            "org_nums":org_nums
+        })
+
+  修改org-list.html文件如下：
+            {% for course_org in all_orgs.object_list %}
+	……
+
+# 分页显示样式
+PAGINATION_SETTINGS = {
+    'PAGE_RANGE_DISPLAYED':10,
+    'MARGIN_PAGES_DISPLAYED':2,
+    'SHOW_FIRST_PAGE_WHEN_INVALID':True,
+}
+
+
+  调用pure-pagination自带的翻页下标
+  <div class="pageturn">
+             {{ all_orgs.render }}
+  </div>
+
+  实现pure-pagination自定义的翻页效果：
+<div class="pageturn">
+            <ul class="pagelist">
+                {% if all_orgs.has_previous %}
+                <li class="long"><a href="?{{ all_orgs.previous_page_number.querystring }}">上一页</a></li>
+                {% endif %}
+
+                {% for page in all_orgs.pages %}
+                    {% if page %}
+                        {% ifequal page all_orgs.number %}
+                            <li class="active"><a href="?{{ page.querystring }}">{{ page }}</a></li>
+                        {% else %}
+                            <li><a href="?{{ page.querystring }}" class="page">{{ page }}</a></li>
+                        {% endifequal %}
+                    {% else %}
+                         <li class="none"><a href="">...</a></li>
+                    {% endif %}
+                {% endfor %}
+
+                {% if all_orgs.has_next %}
+                     <li class="long"><a href="?{{ all_orgs.next_page_number.querystring }}">下一页</a></li>
+                {% endif %}
+            </ul>
+</div>
+
+  
+  在url地址栏中增加一个参数num=3, 即http://127.0.0.1:8000/org_list/?page=2&num=3，F12-->点选页码1查看参数，pure-pagination会自动拼接url ,如<a href="?page=1&num=3" class="page">1</a>，这个就实现了在原来筛选的基础上再增加选择所在地区的筛选的功能。
+
+  实现城市筛选，在org-list.html中添加各遍历城市的id信息{{city.id}}:
+<a href="?city={{ city.id }}"><span class="">{{ city.name }}</span></a>
+
+  在organization/views.py添加筛选城市的功能：
+# 从url地址取出city的id值再到数据库中进行筛选城市
+        city_id = request.GET.get('city',"")
+        if city_id:
+            all_orgs = all_orgs.filter(city_id=int(city_id))
+
+
+在页面的所在地区点选城市，url形如http://127.0.0.1:8000/org_list/?city=4
+
+  实现点击城市成选中状态：
+在organization/views.py向org-list.html传入city_id, 并在org-list.html中判断当前的城市id（city.id）是否等于点选传入的城市id（city_id）,若相等则成active2激活选中状态：
+
+<a href="?city={{ city.id }}"><span class="{% ifequal city_id city.id|stringformat:"i" %}active2{% endifequal %}">{{ city.name }}</span></a>
+
+  为解决‘全部’与‘被选中城市’均为选中状态的错误，可根据city_id值的有无来给‘全部’加上判断语句：
+
+<a href="?ct="><span class="{% ifequal city_id '' %}active2{% endifequal %}">全部</span></a>
+
+
+  实现机构类别筛选：
+<li>
+     <h2>机构类别</h2>
+     <div class="cont">
+            <a href="?city="><span class="active2">全部</span></a>
+            <a href="?ct=pxjg"><span class="">培训机构</span></a>
+            <a href="?ct=gx"><span class="">高校</span></a>
+            <a href="?ct=gr"><span class="">个人</span></a>
+      </div>
+</li>
+
+  在organization/views.py添加筛选机构类别的功能：
+# 从url地址取出ct的值再到数据库中进行机构类别筛选
+        category = request.GET.get('ct',"")
+        if category:
+            all_orgs = all_orgs.filter(category=category)
+
+  实现点击机构类别成选中状态：
+在organization/views.py向org-list.html传入category，并在org-list.html中判断传入的机构类别category是否等于当前的机构类别['pxjg','gx','gr']中的一个,若相等则成active2激活选中状态,为解决‘全部’与‘被选中机构类别’均为选中状态的错误，可根据category值的有无来给‘全部’加上判断语句：              
+         <a href="?ct=pxjg"><span class="{% ifequal category 'pxjg' %}active2{% endifequal %}">培训机构</span></a>
+         <a href="?ct=gx"><span class="{% ifequal category 'gx' %}active2{% endifequal %}">高校</span></a>
+         <a href="?ct=gr"><span class="{% ifequal category 'gr' %}active2{% endifequal %}">个人</span></a>
+
+ <a href="?city="><span class="{% ifequal category '' %}active2{% endifequal %}">全部</span></a>
+
+
+  为解决当点击实现机构类别与所在地区的任何一栏时，都不能记住另外一栏当前值的问题，需要在各栏的href上追加另外一栏的当前值：
+                 在机构类别栏里追加当前选中的城市city={{ city_id }}：
+                        <a href="?city={{ city_id }}"><span class="{% ifequal category '' %}active2{% endifequal %}">全部</span></a>
+
+                            <a href="?ct=pxjg&city={{ city_id }}"><span class="{% ifequal category 'pxjg' %}active2{% endifequal %}">培训机构</span></a>
+                            <a href="?ct=gx&city={{ city_id }}"><span class="{% ifequal category 'gx' %}active2{% endifequal %}">高校</span></a>
+                            <a href="?ct=gr&city={{ city_id }}"><span class="{% ifequal category 'gr' %}active2{% endifequal %}">个人</span></a>
+
+	在城市栏里追加当前选中的机构类别ct={{ category }}：
+                            <a href="?ct={{ category }}"><span class="{% ifequal city_id '' %}active2{% endifequal %}">全部</span></a>
+                            <a href="?city={{ city.id }}&ct={{ category }}"><span class="{% ifequal city_id city.id|stringformat:"i" %}active2{% endifequal %}">{{ city.name }}</span></a>
+
+
+  发现共xx家一直没变化，是因为过早计算的结果，因此应将计算all_orgs的语句放在执行完两次重新选取all_orgs筛选的后面
+
+  筛选热门机构：
+在organization/views.py的OrgView机构类中添加如下并将结果传入org-list.html中：
+        # 热门机构
+        hot_orgs = all_orgs.order_by("-click_nums")[:3]
+
+  在org-list.html中遍历热门机构：
+           {% for current_org in hot_orgs %}
+                    <dl class="des">
+                    <dt class="num fl">{{ forloop.counter }}</dt>  
+                    <dd>
+                        <a href="/company/2/"><h1>{{ current_org.name }}</h1></a>
+                        <p>{{ current_org.address }}</p>
+                    </dd>
+                </dl>
+           {% endfor %}
+
+
+  在organization/models.py的课程机构类中添加学习人数以及课程数 字段：
+    students = models.IntegerField(default=0,verbose_name=u"学习人数")
+    course_nums = models.IntegerField(default=0,verbose_name=u"课程数")
+  将模型改动映射回数据库，manage.py@MxOnline > makemigrations organization
+		         manage.py@MxOnline > migrate organization
+
+
+
+  设置按学习人数或课程数来定选中样式：
+
+  在organization\views.py中用get方法取出前端返回的url中的sort值：
+ # 按学习人数或课程数进行排列
+        sort = request.GET.get('sort',"")
+        if sort:
+            if sort == "students":
+                all_orgs = all_orgs.order_by("-students")  #根据学习人数倒序排列
+            elif sort == "courses":
+                all_orgs = all_orgs.order_by("-course_nums")  #根据课程数倒序排列
+
+
+  在org-list.html中通过传入的sort参数值判断是否置为选中状态：
+	<ul class="tab_header">
+		<li class="{% if sort == '' %}active{% endif %}"><a href="?ct=&city=">全部</a> </li>
+		<li class="{% if sort == 'students' %}active{% endif %}"><a href="?sort=students">学习人数 &#8595;</a></li>
+		<li class="{% if sort == 'courses' %}active{% endif %}"><a href="?sort=courses">课程数 &#8595;</a></li>
+	</ul>
+
+  为了关联三栏的数据，需要在各自href地址中相互引入其他栏的当前值：
+	<li class="{% if sort == '' %}active{% endif %}"><a href="?ct={{ category }}&city={{ city_id }}">全部</a> </li>
+	<li class="{% if sort == 'students' %}active{% endif %}"><a href="?sort=students&ct={{ category }}&city={{ city_id }}">学习人数 &#8595;</a></li>
+	<li class="{% if sort == 'courses' %}active{% endif %}"><a href="?sort=courses&ct={{ category }}&city={{ city_id }}">课程数 &#8595;</a></li>
+
+  
+
+  modelform提交我要学习咨询，以及url分发处理：
+在用户提交数据后需进行form表单验证，即需要自定义一个forms.py文件，现在选择modelform方法进行“我要学习（用户咨询）”表单的数据验证：
+
+  在organization下新建forms.py文件form代码输入如下：
+from django import forms
+
+class UserAskForm(forms.Form):
+    name = forms.CharField(required=True,min_length=2,max_length=20)
+    mobile = forms.CharField(required=True,min_length=11,max_length=11)
+    course_name = forms.CharField(required=True,min_length=5,max_length=55)
+
+  # modelform代码如下(验证成功后可以调用save方法保存到数据库，而上面的form方法不能，而且modelform采用继承方式简化了代码）
+class AnotherUserForm(forms.ModelForm):
+    class Meta:
+        model = UserAsk  # 选择需要继承的用户咨询类UserAsk
+        fields = ['name','mobile','course_name']  # 选择需要继承的字段
+
+  在organization目录下新建urls.py,把MxOnline/urls.py下的课程机构首页放到organization\urls.py下，具体内容如下：
+  MxOnline\urls.py添加如下：
+    url(r'^org/',include('organization.urls',namespace="org")),  # namespace命名空间可以准确的定位，避免name的重复冲突
+
+  organization\urls.py如下：
+from django.conf.urls import url,include
+from .views import OrgView
+
+urlpatterns = [
+#     课程机构首页
+    url(r'^list/$', OrgView.as_view(), name="org_list"),
+]
+
+  在base.html中修改授课机构的href如下（其中org为命名空间）：
+<li class="active" ><a href="{% url 'org:org_list' %}">授课机构</a></li>
+
+  
+  在organization\urls.py下新建添加用户咨询的url：
+from .views import OrgView,AddUserAskView
+
+url(r'^add_ask/$',AddUserAskView.as_view(),name="add_ask"),
+
+
+  在organization\views.py下新建AddUserAskView增加用户咨询类:
+from .forms import UserAskForm
+from django.http import HttpResponse
+
+flag = True
+
+class AddUserAskView(View):
+    """
+    用户添加咨询
+    """
+
+    def post(self,request):
+        global flag
+        userask_form = UserAskForm(request.POST)
+        if userask_form.is_valid():
+            # 此处因不知名的原因会导致user_ask实例化两次，因此使用flag进行标记
+            if not flag:
+                flag = True
+                return
+            flag = False
+
+            user_ask = userask_form.save(commit=True)
+            # 用户咨询提交是ajax异步操作，需要返回json格式的字符串
+            return HttpResponse('{"status":"success"}',content_type='application/json')
+        else:
+            # return HttpResponse("{'status':'fail','msg':{0}}".format(userask_form.errors),content_type='application/json')
+            return HttpResponse('{"status":"fail","msg":"添加出错"}',content_type='application/json')
+
+
+
+  在org-list.html中添加js代码，实现用户咨询提交数据的处理：
+
+{#功能分析：通过监听用户点击按钮后，通过url#}
+{% block custom_js %}
+    <script>
+        $(function(){
+            $('#jsStayBtn').on('click',function(){
+                $.ajax({
+                    cache:false,
+                    type:"POST",
+                    url:"{% url "org:add_ask" %}",
+                    data:$('#jsStayForm').serialize(),   {# 在此之前需要在jsStayForm表单中添加{% csrf_token %}以生成hidden的input #}
+                    async:true,
+                    success:function(data){
+                        console.log(data)
+                        alert(data)
+                        if(data.status == 'success'){
+                            $('#jsStayForm')[0].reset();
+                            alert("提交成功")
+                        }else if(data.status == 'fail'){
+                            $('#jsCompanyTips').html(data.msg)
+                        }
+                    },
+                });
+            });
+        })
+    </script>
+{% endblock %}
+
+
+  在提交表单时input标签的name值一定要与form的对象名保持一致
+
+
+
+
+肾藏智
+肾水养肝木，肝藏魂，谋略出
+肝木养心火，心藏神，英明出
+去欲养志，固内识外
+
+
+
+       智慧诀
+合唇叩齿三十六
+拇指无名根相握
+如厕踮脚紧牙关
+固肾若愚智慧见
+
+
+
+   在organization\forms.py中添加手机号码正则匹配函数：
+import re
+
+# 验证mobile,此函数必须以clean开头
+    def clean_mobile(self):
+        mobile = self.cleaned_data['mobile']
+        REGEX_MOBILE = "^1[358]\d{9}$|^147\d{8}$|^176\d{8}$"
+        p = re.compile(REGEX_MOBILE)
+        if p.match(mobile):
+            return mobile
+        else:
+            raise forms.ValidationError(u"手机号码非法",code="mobile_invalid")
+
+
+
+  机构详情展示：在xadmin中添加机构与课程，并在课程模型中添加机构外键
+
+在课程模型courses\models.py中添加外键课程机构:
+from organization.models import CourseOrg 
+
+class Course(models.Model):
+    course_org = models.ForeignKey(CourseOrg,verbose_name=u"课程机构",null=True,blank=True)
+
+  manage.py@MxOnline > makemigrations courses
+  manage.py@MxOnline > migrate courses
+
+
+  将四个org-detail-xxx.html文件拷入，建立一个基本父类org_base.html以供页眉页边的定型调用，并在class = "right ....."的div标签包裹提供给子类重写的block right块, 为了引用静态文件路径需要加载静态文件路径，并建立供子类重写的标题块、js、css文件的block块：
+{% load staticfiles %}
+    {% block custom_css %}{% endblock %}
+    {% block custom_js %}{% endblock %}
+
+    <li>{% block page_path %}机构首页{% endblock %}</li>
+
+
+{% block right %}
+{% endblock %}
+
+  在organization\urls.py中添加对课程机构首页的引用：
+from .views import OrgView,AddUserAskView,OrgHomeView
+
+    url(r'^home/(?P<org_id>\d+)/$',OrgHomeView.as_view(),name="home"),
+
+
+  在organization\views.py中添加OrgHomeView课程机构首页类:
+
+class OrgHomeView(View):
+    """
+        机构首页
+    """
+    def get(self,request,org_id):
+        course_org = CourseOrg.objects.get(id=int(org_id))
+        all_courses = course_org.course_set.all()[:3]
+        all_teachers = course_org.teacher_set.all()[:1]
+        return render(request,'org-detail-homepage.html',{
+            'all_courses':all_courses,
+            'all_teachers':all_teachers
+        })
+
+  在org-detail-homepage.html中添加如下代码：
+{% extends 'org_base.html' %}
+{% block title %}
+    机构首页
+{% endblock %}
+
+{% block right %}
+        <div class="right companycenter layout grouping" ...>
+        <div class="right companycenter layout" ...>
+        <div class="right companycenter layout" ...>
+{% endblock %}
+
+
+  <div class="brief group_list">
+     {% for course in all_courses %}
+           <div class="module1_5 box" ...>
+     {% endfor %}
+
+
+   修改课程div:
+            <div class="module1_5 box">
+                    <a href="course-detail.html"><img width="214" src="{{ MEDIA_URL }}{{ course.image }}"/></a>
+                          <div class="des">
+                                <a href="course-detail.html"><h2>{{ course.name }}</h2></a>
+                                <span class="fl">课时：<i class="key">{{ course.learn_times }}</i></span>
+                                <span class="fr">参加人数：{{ course.students }}</span>
+                           </div>
+                               <div class="bottom">
+                               <span class="fl">{{ course.course_org.name }}</span>
+                               <span class="star fr  notlogin
+                                        " data-favid="13"  data-fav-type="4">
+                                        {{ course.fav_nums }}
+                              </span>
+                    </div>
+            </div>
+
+
+  在org-list.html中修改链接到org-detail-homepage.html的url路径：
+                        <a href="{% url 'org:org_home' course_org.id %}">
+                            <img width="200" height="120" class="scrollLoading" data-url="{{ MEDIA_URL }}{{ course_org.image }}"  src="{% static 'images/pixel.gif' %}"/>
+                        </a>
+
+  打开数据库中的courses_course表，将其中的course_org_id修改为1，然后在浏览器中访问课程详情页
+
+
+  在organization\views.py中向html传入course_org课程机构对象，然后在父类org_base.html中引用course_org:
+            <img class="fl" style="width: 112px;height: 103px" src="{{ MEDIA_URL }}{{ course_org.image }}"/>
+  然后进行静态文件的引用：
+                    <img src="{% static 'images/authentication.png' %}"/>
+                    <img src="{% static 'images/gold.png' %}"/>
+
+                    path		: '{% static 'images/' %}',
+
+  在xadmin中传递讲师的图片（在教师的organization\models.py的Teacher类中添加ImageField）：
+
+     image = models.ImageField(default='',upload_to="teachers/%Y/%m",verbose_name=u"头像",max_length=100)
+
+  manage.py@MxOnline > makemigrations organization
+  manage.py@MxOnline > migrate organization
+
+
+  在org-detail-homepage.html中循环遍历教师：
+{% for teacher in all_teachers %}
+                <div class="diarys">
+                    <div class="module5 share company-diary-box" style="padding:10px 0;">
+                        <div class="left">
+                            <img class="pic" src="{{ MEDIA_URL }}{{ teacher.image }}"/>
+                            <p>昵称：{{ teacher.name }}</p>
+                        </div>
+                        <div class="right">
+                            <div class="top">
+                                <div class="fl">
+                                    <a href=""><h1>java开发教程</h1></a>
+                                    <span>发表于：2015-10-12</span>
+                                </div>
+                            </div>
+                            <div class="middle" style="border-bottom:0;">课程介绍</div>
+                        </div>
+                    </div>
+                </div>
+{% endfor %}
+
+  添加机构介绍：
+<div class="cont">&nbsp;&nbsp;{{ course_org.desc }}</div>
+
+  实现浏览器左侧列表选择功能：
+  在org_base.html中修改href路径：
+<li class="active2"><a href="{% url 'org:org_home' course_org.id %}">机构首页</a></li>
+<li class=""><a href="{% url 'org:org_course' course_org.id %}">机构课程</a></li>
+
+  并在urls.py中增加引用：
+from .views import OrgView,AddUserAskView,OrgHomeView,OrgCourseView
+
+    url(r'^course/(?P<org_id>\d+)/$', OrgCourseView.as_view(), name="org_course"),
+
+  在organization\views.py中添加OrgCourseView机构课程列表类：
+
+class OrgCourseView(View):
+    """
+        机构课程列表页
+    """
+    def get(self,request,org_id):
+        course_org = CourseOrg.objects.get(id=int(org_id))
+        all_courses = course_org.course_set.all()
+        return render(request,'org-detail-course.html',{
+            'all_courses':all_courses,
+            'course_org':course_org
+        })
+
+  将org-detail-homepage.html中的内容覆盖到org-detail-course.html中，然后删除block right_formblock中的第二、三个div，修改标题为‘机构课程列表页’
+
+
+  在org_base.html中使浏览器左侧列表成选中状态，通过在各View类中添加返回标记来实现：
+在organization\views.py的OrgHomeView机构首页类中添加current_page标记并传入homepage.html文件中:
+  current_page = "home"
+
+  在org_base.html中添加标记判别语句，判断是否成选中状态：
+<ul>
+	<li class="{% ifequal current_page 'home' %}active2{% endifequal %}"><a href="{% url 'org:org_home' course_org.id %}">机构首页</a></li>
+                <li class="{% ifequal current_page 'course' %}active2{% endifequal %}"><a href="{% url 'org:org_course' course_org.id %}">机构课程</a></li>
+                <li class="{% ifequal current_page 'desc' %}active2{% endifequal %}"><a href="{% url 'org:org_desc' course_org.id %}">机构介绍</a></li>
+                <li class="{% ifequal current_page 'teacher' %}active2{% endifequal %}"><a href="org-detail-teachers.html">机构讲师</a></li>
+</ul>
+
+  机构介绍与机构讲师配置同上，略
+
+
+  修改org_base.html中的crumbs面包屑，使课程机构的路径指向命名空间org里的org_list页面：
+<li><a href="{% url 'org:org_list' %}">课程机构</a>></li>
+
+  在各子类中重写页面路径page_path面包屑：
+{% block page_path %}机构介绍{% endblock %}
+……
+
+
+  实现收藏功能：
+删除浏览器的cookie记录，或在xadmin中注销
+
+  ajax异步收藏，在org_base.html中监听‘收藏’标签点击的js方法：
+<script type="text/javascript">
+
+  $('.collectionbtn').on('click', function(){
+    add_fav($(this), {{ course_org.id }}, 2);
+  });
+
+
+  //收藏分享
+  function add_fav(current_elem, fav_id, fav_type){
+    $.ajax({
+        cache: false,
+        type: "POST",
+        url:"{% url "org:add_fav" %}",
+        data:{'fav_id':fav_id, 'fav_type':fav_type},
+        async: true,
+        {#在没有form封装前端”收藏“的情况下，需要下面一行代码#}
+        beforeSend:function(xhr, settings){
+            xhr.setRequestHeader("X-CSRFToken", "{{ csrf_token }}");
+        },
+        success: function(data) {
+            if(data.status == 'fail'){
+                if(data.msg == '用户未登录'){
+                    window.location.href="/login/";
+                }else{
+                    alert(data.msg)
+                }
+
+            }else if(data.status == 'success'){
+                current_elem.text(data.msg)
+            }
+        },
+    });
+  }
+
+</script>
+
+
+  在organization\urls.py只能够定义机构收藏的引用：
+
+#     机构收藏
+    url(r'^add_fav/$',AddFavView.as_view(),name='add_fav'),
+
+
+  在organization\views.py中定义用户收藏或取消类AddFavView：
+from operation.models import UserFavorite
+
+class AddFavView(View):
+    """
+        用户收藏，用户取消收藏
+    """
+    def post(self,request):
+        fav_id = request.POST.get('fav_id',0)
+        fav_type = request.POST.get('fav_type',0)
+
+        # 判断用户是否登录：
+        if not request.user.is_authenticated():
+            # 判断用户登录状态
+            return HttpResponse('{"status":"fail","msg":"用户未登录"}',content_type='application/json')
+
+        exist_records = UserFavorite.objects.filter(user=request.user,fav_id=int(fav_id),fav_type=int(fav_type))
+        if exist_records:
+            # 如果记录已经存在，则表示用户取消收藏
+            exist_records.delete()
+            return HttpResponse('{"status":"success","msg":"收藏"}',content_type='application/json')
+        else:
+            user_fav = UserFavorite()
+            if int(fav_id) > 0 and int(fav_type) > 0:
+                user_fav.user = request.user
+                user_fav.fav_id = int(fav_id)
+                user_fav.fav_type = int(fav_type)
+                user_fav.save()
+                return HttpResponse('{"status":"success","msg":"已收藏"}', content_type='application/json')
+            else:
+                return HttpResponse('{"status":"fail","msg":"收藏出错"}', content_type='application/json')
+
+
+  在‘已收藏’后防止网页刷新后无效，在各views中添加表示已收藏的标记，通过到数据库中过滤当前的课程机构的id与收藏类型的值来添加标记：
+  在 organization\views.py的OrgHomeView类中添加如下，并把收藏标记传入到html中：
+        # 前端显示收藏与否的后端标记
+        has_fav = False
+        if request.user.is_authenticated():
+            if UserFavorite.objects.filter(user=request.user, fav_id=course_org.id, fav_type=2):
+                has_fav = True
+  另三类中同上
+
+
+  在org_base.html中用if语句判断显示收藏与否：
+{% if has_fav %}已收藏{% else %}收藏{% endif %}
+
+
+  在登录状态下org_base.html仍然显示不出用户的登陆信息，遂将index.html的if语句覆盖org_base.html中的名为top的div：
+
+
+
+  
+
+
+8>.第8章 课程功能实现
+
+  将course-list.html拷贝至templates下：
+  在MxOnline\urls.py下添加课程相关url配置：
+    # 课程相关url配置
+    url(r'^course/', include('courses.urls', namespace="course")),  # namespace命名空间可以准确的定位，避免name的重复冲突
+
+  在名为courses的app下，添加urls.py：
+from .views import CourseListView
+  
+urlpatterns = [
+#     课程列表页
+    url(r'^list/$',CourseListView.as_view(),name="course_list")
+]
+
+  在courses\views.py中新建CourseListView课程列表类:
+from django.views.generic.base import View
+
+
+class CourseListView(View):
+    def get(self,request):
+        return render(request,'course-list.html',{})
+
+  
+  将org-list.html的内容拷贝到course-list.html如下，course-list.html继承自base.html：
+{% extends 'base.html' %}
+
+{% load staticfiles %}
+
+{% block title %}公开课列表 - 慕学在线网{% endblock %}
+
+{% block custom_bread %}
+     <section>
+        <div class="wp">
+            <ul  class="crumbs">
+                <li><a href="index.html">首页</a>></li>
+                <li>公开课</li>
+            </ul>
+        </div>
+     </section>
+{% endblock %}
+
+{% block content %}
+      <section ...>   {# 通过F12将主体内容拷贝到content块内 #}
+{% endblock %}
+
+  在xadmin中添加10堂课程，然后在courses\views.py中全部取出并按添加时间进行排序以实现页面中的‘最新’效果，再将取出的全部课程对象传入到course-list.html中：
+from .models import Course
+
+class CourseListView(View):
+    def get(self,request):
+        all_courses = Course.objects.all().order_by("-add_time")
+        return render(request,'course-list.html',{'all_courses':all_courses})
+
+  在course-list.html中遍历数据库中所有的课程：
+
+{% for course in all_courses %}
+           <div class="box">
+                    <a href="course-detail.html">
+                                    <img width="280" height="350" class="scrollLoading" src="{{ MEDIA_URL }}{{ course.image }}"/>
+                                </a>
+                      <div class="des">
+                             <a href="course-detail.html">
+                                    <h2>{{ course.name }}</h2>
+                             </a>
+                                    <span class="fl">时长：<i class="key">{{ course.learn_times }}</i></span>
+                                    <span class="fr">学习人数：{{ course.students }}&nbsp;&nbsp;</span>
+                      </div>
+                      <div class="bottom">
+                             <a href="course-detail.html"><span class="fl">来自{{ course.course_org.name }}</span></a>
+                             <span class="star fr  notlogin
+                               " data-favid="15">
+                                        {{ course.fav_nums }}
+                             </span>
+                      </div>
+             </div>
+{% endfor %}
+
+
+  实现分页功能，把organization\views.py中的pure-pagination拷贝到course\views.py中：
+from pure_pagination import Paginator,EmptyPage,PageNotAnInteger
+
+# pure-pagination对课程进行分页
+        try:
+            page = request.GET.get('page', 1)
+        except PageNotAnInteger:
+            page = 1
+
+
+        # Provide Paginator with the request object for complete querystring generation
+
+        p = Paginator(all_orgs,5, request=request)   # 其中per_page表示每页显示的个数
+
+        courses = p.page(page)
+
+        return render(request,'course-list.html',{
+            'all_courses':courses,
+        })
+
+
+  在course-list.html中修改传入的分页参数：
+ {% for course in all_courses.object_list ... %}
+
+
+  实现页面下标功能，将org-list.html中名为pageturn的div覆盖到course-list.html中：
+
+<div class="pageturn">
+
+       <ul class="pagelist">
+                  {% if all_courses.has_previous %}
+                        <li class="long"><a href="?{{ all_courses.previous_page_number.querystring }}">上一页</a></li>
+                  {% endif %}
+
+                  {% for page in all_courses.pages %}
+                        {% if page %}
+                              {% ifequal page all_courses.number %}
+                                     <li class="active"><a href="?{{ page.querystring }}">{{ page }}</a></li>
+                              {% else %}
+                                     <li><a href="?{{ page.querystring }}" class="page">{{ page }}</a></li>
+                              {% endifequal %}
+                              {% else %}
+                                     <li class="none"><a href="">...</a></li>
+                         {% endif %}
+                   {% endfor %}
+
+                  {% if all_courses.has_next %}
+                        <li class="long"><a href="?{{ all_courses.next_page_number.querystring }}">下一页</a></li>
+                  {% endif %}
+        </ul>
+
+</div>
+
+
+  实现按照最热门或参与人数进行排序，将organization\views.py下的sort方法拷贝到course\views.py中，并将sort传入course-list.html中：
+
+        # 按学习人数或课程数进行排列
+        sort = request.GET.get('sort', "")
+        if sort:
+            if sort == "students":
+                all_courses = all_courses.order_by("-students")  # 根据学习人数倒序排列
+            elif sort == "courses":
+                all_courses = all_courses.order_by("-course_nums")  # 根据课程数倒序排列
+
+  在导航栏中添加对sort值的判断而实现被选中的状态：
+
+<li class="{% if sort == '' %}active{% endif %}"><a href="?sort=">最新 </a></li>
+<li class="{% if sort == 'hot' %}active{% endif %}"><a href="?sort=hot">最热门</a></li>
+<li class="{% if sort == 'students' %}active{% endif %}"><a href="?sort=students">参与人数</a></li>
+
+
+  热门课程推荐功能实现：
+在courses\views.py的CourseListView课程列表类中按点击数取出前若干项，并把hot_courses 热门课程对象传入course-list.html中：
+        hot_courses = Course.objects.all().order_by("-click_nums")[:3]
+
+
+  在course-list.html中遍历热门课程对象hot_courses ：
+
+{% for hot_course in hot_courses %}
+        <dl>
+	<dt>
+	       <a target="_blank" href="">
+	               <img width="240" height="220" class="scrollLoading" src="{{ MEDIA_URL }}{{ hot_course.image }}"/>
+	       </a>
+	</dt>
+	<dd>
+	         <a target="_blank" href=""><h2> {{ hot_course.name }}</h2></a>
+	         <span class="fl">难度：<i class="key">{{ hot_course.get_degree_display }}</i></span>   {# 如果直接输入{{ hot_course.degree }}，则显示课程模型中难度choices里的键，即zj，cj,gj #}
+	</dd>
+        </dl>
+{% endfor %}
+
+
+  实现课程详情页：
+
+  在course-list.html中找到链接到course-detail.html的标签，Ctrl+F搜索所有的course_detail.html然后替换如下：
+<a href="{% url 'course:course_detail' course.id %}">
+
+<a href="{% url 'course:course_detail' course.id %}"><span class="fl">来自{{ course.course_org.name }}</span></a>
+……
+
+  在courses\urls.py中新建课程详情页的引用，到organization\urls.py下复制/(?P<org_id>\d+)/$以指明机构：
+#     课程详情页
+url(r'^detail/(?P<course_id>\d+)/$',CourseDetailView.as_view(),name="course_detail"),
+
+  在courses\views.py中新建CourseDetailView课程详情类并接收前端返回的course_id：
+class CourseDetailView(View):
+    """
+        课程详情页
+    """
+    def get(self,request,course_id):
+        course = Course.objects.get(id=int(course_id))
+        return render(request,"course-detail.html",{
+               'course':course
+        })
+
+  
+
+  拷贝course-detail.html到Template下，把course-list.html中除了content块以外的块拷贝到course-detail.html中，将custom_bread块的内容用原来的面包屑替换，然后将公开课程的href改为命名空间course里的course-list：
+{% extends 'base.html' %}
+{% load staticfiles %}
+
+{% block title %}公开课列表 - 慕学在线网{% endblock %}
+
+{% block custom_bread %}
+     <section>
+          <div class="wp">
+	<div class="crumbs">
+	       <ul>
+		<li><a href="/">首页</a>></li>
+                                <li><a href="{% url 'course:course_list' %}">公开课程</a>></li>
+		<li>课程详情</li>
+	       </ul>
+	</div>
+          </div>
+    </section>
+{% endblock %}
+
+  F12查看course-detail.html的主体内容，然后将主体内容拷贝到content块里：
+
+{% block content %}
+     <section ...>
+     <section ...>
+{% endblock %}
+
+  修改图片引用路径，Ctrl+f搜索../images
+<img width="440" height="445" src="{{ MEDIA_URL }}{{ course.image }}" class="jqzoom" />
+
+  显示课程章节数，通过在courses\models.py中的课程模型中定义一个获取课程章节数的方法实现：
+    # 获取课程章节数
+    def get_lesson_nums(self):
+        return self.lesson_set.all().count()  # 通过外键的反向引用获取章节集的计数
+  
+  显示课程类别，在courses\models.py中的Course模型中新建category种类对象：
+category = models.CharField(default=u"后端开发",max_length=20,verbose_name=u"课程类别")
+
+  做数据库同步
+
+  显示学习用户，在用户操作在名为operation的app中models.py下有一个用户学习的课程模型，通过在courses\models.py中的课程模型中定义一个获取学习用户数的方法实现：
+    # 获取学习用户数
+    def get_learn_users(self):
+        return self.usercourse_set.all()[:5]
+
+  然后在course-detail.html中遍历学习用户，凡是用户上传的内容均需引用MEDIA_URL：
+{% for learn_user in course.get_learn_users %}
+        <span class="pic"><img width="40" height="40" src="{{ MEDIA_URL }}{{ learn_user.user.image }}"/></span>
+{% endfor %}
+
+  在
+
+  用户在点击课程进入到课程详情页后需要把点击数click_nums做增1操作，在courses\views.py的CourseDetailView课程详情类中增加代码如下：
+        # 增加课程点击数
+        course.click_nums += 1
+        course.save()
+
+  课程详情修改为：
+                    <div class="tab_cont tab_cont1">
+                        {{ course.detail }}
+                    </div>
+
+  授课机构的修改，教师数的显示需要在课程course的外键course_org模型中定义获取教师数的方法：
+    # 获取课程机构教师的数量
+    def get_teacher_nums(self):
+        return self.teacher_set.all().count()
+
+<div class="right">
+	<div class="head">
+		<h1>授课机构</h1>
+		<p>世界名校，课程权威</p>
+	</div>
+	<div class="pic">
+                        <a href="/company/14/">
+                            <img width="150" height="80" src="{{ MEDIA_URL }}{{ course.course_org.image }}"/>
+                        </a>
+                </div>
+	    <a href="/company/14/">
+                        <h2 class="center" title="清华大学">{{ course.course_org.name }}</h2>
+                    </a>
+	<div class="btn  notlogin"data-favid="14" id="jsRightBtn">
+                         已收藏
+                </div>
+	<div class="clear">
+	      <ul>
+                            <li>
+                                <span>课 &nbsp;程&nbsp; 数：&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;   {{ course.course_org.course_nums }}</span>
+                            </li>
+                            <li>
+                                <span>教 &nbsp;师&nbsp; 数：&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;  {{ course.course_org.get_teacher_nums }}</span>
+                            </li>
+	            <li>所在地区：&nbsp;&nbsp;{{ course.course_org.address }}</li>
+	            <li>认&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;证&nbsp;:
+                                &nbsp;&nbsp;
+		 <img title="金牌机构", src="{% static 'images/gold.png' %}"/>
+	            </li>
+	       </ul>
+	</div>
+</div>
+
+
+  相关课程推荐：
+在courses\models.py的Course类中添加一个标签tag
+    tag = models.CharField(default=u"后端开发",max_length=20,verbose_name="课程标签")
+   同步到数据库
+
+  在courses\views.py中课程详情页类内添加是否有相关推荐的判断语句，并把relate_courses传入course-detail.html中：
+        tag = course.tag
+        if tag:
+            relate_courses = Course.objects.filter(tag=tag)[:1]
+        else:
+            relate_courses = []
+
+  在course-detail.html中循环遍历相关推荐对象：
+{% for relate_course in relate_courses %}
+                            <dl>
+                                <dt>
+                                    <a target="_blank" href="">
+                                        <img width="240" height="220" class="scrollLoading" src="{{ MEDIA_URL }}{{ relate_course.image }}"/>
+                                    </a>
+                                </dt>
+                                <dd>
+                                    <a target="_blank" href=""><h2> {{ relate_course.name }}</h2></a>
+                                    <span class="fl">学习时长：<i class="key">{{ relate_course.learn_times }}</i></span>
+                                </dd>
+                            </dl>
+                        {% endfor %}
+
+  实现两个收藏功能，先把base.html文件中的用户自定义js块放到body的最底部，然后在course-list.html中重写{% block custom_js %}:
+
+{% block custom_js %}
+    <script type="text/javascript">
+        function add_fav(current_elem,fav_id,fav_type){
+            $.ajax({
+                cache:false,
+                type:"POST",
+                url:"{% url "org:add_fav" %}",
+                data:{'fav_id':fav_id,'fav_type':fav_type},
+                async:true,
+                beforeSend:function(xhr,settings){
+                    xhr.setRequestHeader("X-CSRFToken","{{ csrf_token }}");
+                },
+                success: function(data){
+                    if (data.status == 'fail'){
+                        if(data.msg == '用户未登录'){
+                            window.location.href = "/login/";
+                        }else{
+                            alert(data.msg)
+                        }
+                    }else if(data.status == 'success'){
+                        current_elem.text(data.msg)
+                    }
+                }
+    })
+        }
+
+    $('#jsLeftBtn').on('click',function(){
+        add_fav($(this),{{ course.id }},1);  {# operation/models.py下的UserFavorite模型中用户喜爱的课程类型为1,而课程机构的类型为2 #}
+    });
+
+    $('#jsRightBtn').on('click',function(){
+        add_fav($(this),{{ course.course_org.id }},2);
+    });
+
+    </script>
+{% endblock %}
+
+
+  为防止刷新网页后收藏状态显示发生改变，应做两个标记判断在用户登录的情况下，看如果能从数据库中过滤查找到用户收藏的课程号或课程机构号，就将标记置为True, 然后将两个标记输入到course-detail.html中：
+
+  在courses\views.py中的课程详情类里添加如下：
+        # 前端确定收藏与否的后端标记
+        has_fav_course = False
+        has_fav_org = False
+        if request.user.is_authenticated():
+            if UserFavorite.objects.filter(user=request.user,fav_id=course.id,fav_type=1):
+                has_fav_course = True
+            if UserFavorite.objects.filter(user=request.user,fav_id=course.course_org.id,fav_type=2):
+                has_fav_org = True
+
+
+  在course-detail.html中修改如下：
+{% if has_fav_course %}已收藏{% else %}收藏{% endif %}
+{% if has_fav_org %}已收藏{% else %}收藏{% endif %}
+
+
+  显示课程章节信息，在courses\urls.py下添加章节信息页的url:
+from .views import CourseListView,CourseDetailView,CourseInfoView
+
+#     章节信息页
+    url(r'^info/(?P<course_id>\d+)/$',CourseInfoView.as_view(),name="course_info"),
+
+  在courses\views.py中添加章节信息类 CourseInfoView如下：
+class CourseInfoView(View):
+    """
+    课程章节信息
+    """
+    def get(self,request,course_id):
+        course = Course.objects.get(id=int(course_id))
+
+        return render(request, "course-video.html", {
+            'course': course,
+
+        })
+
+  在course-detail.html页面中调用url：
+<div class="buy btn"><a style="color: white" href="{% url 'course:course_info' course.id %}">开始学习</a></div>
+
+
+  将course-video.html拷贝至Template目录下，按老规矩继承，F12找到页面主体，此处路径在muke下的css是样式文件，因此重写custom_css块
+{% block custom_css %}
+    <link rel="stylesheet" type="text/css" href="{% static 'css/muke/base.css' %}" />
+    <link rel="stylesheet" type="text/css" href="{% static 'css/muke/common-less.css' %}" />
+    <link rel="stylesheet" type="text/css" href="{% static 'css/muke/course/learn-less.css' %}" />
+    <link rel="stylesheet" type="text/css" href="{% static 'css/aui.css' %}" />
+    <link rel="stylesheet" type="text/css" href="{% static 'css/mooc.css' %}" />
+    <link rel="stylesheet" type="text/css" href="{% static 'css/muke/course/common-less.css' %}">
+{% endblock %}
+
+{% block content %}
+    <div id="main" ...>
+{% endblock %}
+
+  在custom_bread面包屑块中添加如下代码：
+<li><a href="{% url 'course:course_detail' course.id %}">课程详情</a>></li>
+<li>章节信息</li>
+
+ 在xadmin中添加章节，打开课程管理下的课程，然后在课程右边找到关联数据，点开后就可以在对应课程下对外键章节进行浏览或增加章节的操作；增加完章节后在章节右边找到关联数据，点开后就可以在相应章节下添加视频
+
+  在courses\models.py下的Video类中添加视频链接url:
+url = models.CharField(max_length=200,default="",verbose_name=u"访问地址")
+
+  课程章节的获取通过在课程模型中定义获取章节的方法来实现：
+
+    # 获取课程所有章节
+    def get_course_lesson(self):
+        return self.lesson_set.all()
+
+    在course-video.html中遍历课程的章节：
+{% for lesson in course.get_course_lesson %}
+      <div class="chapter chapter-active" ...>
+{% endfor %}
+
+  章节视频，通过在章节模型中定义获取视频的方法来实现：
+    # 获取章节所有视频
+    def get_lesson_video(self):
+        return self.video_set.all()
+
+  在course-video.html中遍历章节的视频：
+{% for video in lesson.get_lesson_video %}
+     <li ...>
+{% endfor %}
+
+
+  在xadmin中添加课程资源数据，在课程管理中打开课程右边的外键课程资源
+
+  在courses\views.py中从数据库中导入课程资源的内容并传入course-video.html中：
+from .models import Course,CourseResource
+
+all_resources = CourseResource.objects.filter(course=course)
+
+  在course-video.html中遍历课程资源对象：
+{% for course_resource in course_resources %}
+      <li>
+            <span ><i class="aui-iconfont aui-icon-file"></i>&nbsp;&nbsp;{{ course_resource.name }}</span>
+            <a href="{{ MEDIA_URL }}{{ course_resource.download }}" class="downcode" target="_blank" download="" data-id="274" title="">下载</a>
+      </li>
+{% endfor %}
+
+  其他course相关引用略
+
+  在课程模型中创建老师的外键，在courses\models.py添加如下代码：
+from organization.models import CourseOrg,Teacher
+
+    teacher = models.ForeignKey(Teacher,verbose_name=u"讲师",null=True,blank=True)
+
+  数据库同步后到xadmin中选择课程的老师，在course-video.html中的讲师提示部分通过课程的外键讲师进行讲师属性的引用：
+<h4>讲师提示</h4>
+<div class="teacher-info">
+        <a href="/u/315464/courses?sort=publish" target="_blank">
+               <img src='{{ MEDIA_URL }}{{ course.teacher.image }}' width='80' height='80' />
+        </a>
+        <span class="tit">
+               <a href="/u/315464/courses?sort=publish" target="_blank">{{ course.teacher.name }}</a>
+        </span>
+        <span class="job">{{ course.teacher.work_position }}</span>
+</div>
+
+
+  在课程模型中增加课程须知与老师告诉你能学到什么两个板块下的动态数据
+youneed_known = models.CharField(max_length=300,verbose_name=u"课程须知")
+teacher_tell = models.CharField(max_length=300,verbose_name=u"老师告诉你")
+
+  
+
+  实现课程评论功能，在courses\views.py中添加如下代码：
+from operation.models import UserFavorite,CourseComments
+
+class CommentsView(View):
+    def get(self,request,course_id):
+        course = Course.objects.get(id=int(course_id))
+        all_resources = CourseResource.objects.filter(course=course)
+        all_comments = CourseComments.objects.all()
+        return render(request, "course-comment.html", {
+            'course': course,
+            'course_resources': all_resources,
+            'all_comments':all_comments
+        })
+
+
+
+  将course-comment.html拷贝到Template下，然后编写如下
+{% extends 'base.html' %}
+{% load staticfiles %}
+
+{% block title %}公开课评论 - 慕学在线网{% endblock %}
+
+{% block custom_bread %}
+    <section>
+	<div class="wp">
+	     <div class="crumbs">
+	           <ul>
+	                 <li><a href="/">首页</a>></li>
+                                 <li><a href="{% url 'course:course_list' %}">公开课程</a>></li>
+                                 <li><a href="{% url 'course:course_detail' course.id %}">课程详情</a>></li>
+                                 <li>课程评论</li>
+	           </ul>
+	     </div>
+	</div>
+    </section>
+{% endblock %}
+
+{% block custom_css %}
+    <link rel="stylesheet" type="text/css" href="{% static 'css/muke/course/learn-less.css' %}" />
+    <link rel="stylesheet" type="text/css" href="{% static 'css/muke/course/course-comment.css' %}" />
+    <link rel="stylesheet" type="text/css" href="{% static 'css/muke/base.css' %}">
+    <link rel="stylesheet" type="text/css" href="{% static 'css/muke/common-less.css' %}">
+    <link rel="stylesheet" type="text/css" href="{% static 'css/muke/course/common-less.css' %}">
+    <link rel="stylesheet" type="text/css" href="{% static 'css/mooc.css' %}" />
+{% endblock %}
+
+
+{% block content %}
+     <div id="main" ...>
+{% endblock %}
+
+  
+  在courses\urls.py下新建url:
+from .views import CommentsView
+
+#     课程评论
+    url(r'^comment/(?P<course_id>\d+)/$',CommentsView.as_view(),name="course_comment"),
+
+  在course-video.html中搜索‘评论’如下：
+<li><a class="ui-tabs-active active" id="learnOn"  href="{% url 'course:course_info' course.id %}"><span>章节</span></a></li>
+<li><a id="commentOn" class="" href="{% url 'course:course_comment' course.id %}"><span>评论</span></a></li>
+
+
+  ajax实现添加评论功能：
+
+  在course-comment.html中重写custom_js块：
+{% block custom_js %}
+    <script type="text/javascript">
+        //添加评论
+        $('#js-pl-submit').on('click',function(){
+            var comments = $("#js-pl-textarea").val();
+            if(comments === ""){
+                alert("评论不能为空");
+                return
+            }
+            $.ajax({
+                cache:false,
+                type:"POST",
+                url:"{% url 'course:add_comment' %}",
+                data:{'course_id':{{ course.id }},'comments':comments},
+                async:true,
+                beforeSend:function(xhr,settings){
+                    xhr.setRequestHeader("X-CSRFToken","{{ csrf_token }}");
+                },
+                success: function(data){
+                    if(data.status === 'fail'){
+                        if(data.msg === '用户未登录'){
+                            window.location.href = "/login/";
+                        }else{
+                            alert(data.msg);
+                        }
+                    }else if(data.status === 'success'){
+                        window.location.reload();//刷新当前页面
+                    }
+                },
+            });
+        });
+    </script>
+{% endblock %}
+
+
+
+  在courses\urls.py中添加评论引用：
+from .views import AddCommentsView
+
+#     添加课程评论
+    url(r'^add_comment/$', AddCommentsView.as_view(), name="add_comment"),
+
+
+  在courses\views.py中新建AddCommentsView添加评论类：
+class AddCommentsView(View):
+    """
+        用户添加课程评论
+    """
+    def post(self,request):
+        if not request.user.is_authenticated():
+            # 判断用户登录状态
+            return HttpResponse("{'status':'fail','msg':'用户未登录'}",content_type="application/json")
+
+        course_id = int(request.POST.get("course_id",0))
+        comments = request.POST.get("comments","")
+
+
+        if course_id > 0 and comments:
+            course_comments = CourseComments()
+            course = Course.objects.get(id=int(course_id))
+            course_comments.course = course
+            course_comments.comments = comments
+            course_comments.user = request.user
+            course_comments.save()
+            return HttpResponse('{"status":"success","msg":"添加成功"}', content_type='application/json')
+        else:
+            return HttpResponse('{"status":"fail","msg":"添加失败"}', content_type='application/json')
+
+  在course-comment.html中遍历所有的评论：
+{% for user_comments in all_comments %}
+       <li class="post-row">
+                <div class="media">
+                         <span target="_blank"><img src='{{ MEDIA_URL }}{{ user_comments.user.image }}' width='40' height='40' /></span>
+                </div>
+                <div class="bd">
+                        <div class="tit">
+                                  <span target="_blank">{{ user_comments.user.username }}</span>
+                        </div>
+                                  <p class="cnt">{{ user_comments.comments }}</p>
+                                  <div class="footer clearfix">
+                                  <span title="创建时间" class="l timeago">时间：{{ user_comments.add_time }}</span>
+                        </div>
+                </div>
+      </li>
+{% endfor %}
+
+  
+
+  实现显示学过该课的同学还学过的课程：
+
+  在courses/views.py的CourseInfoView课程章节信息类中引用UserCourse用户学习的课程类，具体操作是在UserCourse用户学习的课程类中通过过滤方法实例化所有与该课程对应的用户课程对象，然后对过滤对象使用取出其外键user的id的列表推导式从而得出所有学习该课程的其他用户的id列表，通过用户的id列表用__in再次对UserCourse用户学习的课程类进行实例化过滤，然后对这个对象使用取出其外键course的id的列表推导式从而得出所有学习该课程的其他用户还学习过的课程的id列表，然后对Course课程类进行按前若干名点击数降序排列的过滤对象：
+from operation.models import UserCourse
+
+        user_courses = UserCourse.objects.filter(course=course)
+        print(user_courses)
+        user_ids = [user_course.user.id for user_course in user_courses]
+        print(user_ids)
+        all_user_courses = UserCourse.objects.filter(user_id__in=user_ids)
+        print(all_user_courses)
+        # 取出所有课程id
+        course_ids = [user_course.course.id for user_course in all_user_courses]
+        print(course_ids)
+        # 获取学过该用户学过其他的所有课程
+        relate_courses = Course.objects.filter(id__in=course_ids).order_by("-click_nums")[:5]
+        print(relate_courses)
+
+ 
+  实现用户点击‘我要学习’后课程与用户的绑定，在此之前要判断用户是否登录：
+在utils目录下新建mixin_utils.py文件，此文件用于放置诸如loginView等可被继承的基础View：
+
+  mixin_utils.py：
+from django.contrib.auth.decorators import login_required
+from django.utils.decorators import method_decorator
+
+class LoginRequiredMixin(object):
+    @method_decorator(login_required(login_url='/login/'))
+    def dispatch(self,request,*args,**kwargs):
+        return super(LoginRequiredMixin,self).dispatch(request,*args,**kwargs)
+
+  courses\views.py:
+from utils.mixin_utils import LoginRequiredMixin
+
+class CommentsView(LoginRequiredMixin,View):
+      ……
+
+class CourseInfoView(LoginRequiredMixin, View):
+      ……
+
+  xadmin注销后访问课程详情页http://127.0.0.1:8000/course/detail/10/，点开始学习后则需要登录
+
+  用户在点击我要学习后，就将该课程的学习人数加1，在CourseInfoView课程章节信息类中添加如下代码：
+        course.students += 1
+        course.save()
+
+
+
+  实现课程的播放页面：
+把course-play.html拷贝到Templates目录下并把比course-video.html中多出来的部分拷贝如下，将course-video.html中的内容覆盖course-play.html，然后把如下js与css部分分别增加上去，把如下div替换原来名为course-infos的div；此文件引用了video.js文件，可百度video.js获得
+将video.min.js拷贝到static/js目录下，将video-js.min.css拷贝到static/css目录下：
+
+
+
+<script src="{% static 'js/video.min.js' %}" type="text/javascript"></script>
+<link rel="stylesheet" type="text/css" href="{%  static 'css/video-js.min.css' %}">
+
+    <style>
+    .video-js .vjs-big-play-button {
+        top: 50%;
+        left: 50%;
+    }
+    </style>
+
+
+        <div style="width:900px;height:675px; margin-left: 85px">
+            <video id="example_video_1" class="video-js vjs-default-skin" controls preload="none" width="1200"
+                  poster="http://video-js.zencoder.com/oceans-clip.png"
+                  data-setup="{}">
+                <source src="{{ video.url }}" type='video/mp4'>
+            </video>
+        </div>
+
+
+  在courses\urls.py下增加访问视频的路径：
+from .views import VideoPlayView
+
+#     视频播放
+    url(r'^video/(?P<video_id>\d+)/$', VideoPlayView.as_view(), name="video_play"),
+
+
+  在courses\views.py中新建VideoPlay视频播放类，把CourseInfoView课程章节信息类中的内容拷贝到其下：
+from .models import Video
+
+class VideoPlay(View):
+    """
+    视频播放页面
+    """
+    def get(self,request,video_id):
+        video = Video.objects.get(id=int(video_id))
+        course = video.lesson.course
+        course.students += 1
+        course.save()
+        # 查询用户是否已经关联了该课程
+        user_courses = UserCourse.objects.filter(user=request.user,course=course)
+        if not user_courses:
+            user_course = UserCourse(user=request.user,course=course)
+            user_course.save()
+
+        user_courses = UserCourse.objects.filter(course=course)
+        print(user_courses)
+        user_ids = [user_course.user.id for user_course in user_courses]
+        print(user_ids)
+        all_user_courses = UserCourse.objects.filter(user_id__in=user_ids)
+        print(all_user_courses)
+        # 取出所有课程id
+        course_ids = [user_course.course.id for user_course in all_user_courses]
+        print(course_ids)
+        # 获取学过该用户学过其他的所有课程
+        relate_courses = Course.objects.filter(id__in=course_ids).order_by("-click_nums")[:5]
+        print(relate_courses)
+        all_resources = CourseResource.objects.filter(course=course)
+        print(all_resources)
+        return render(request, "course-play.html", {
+            'course': course,
+            'course_resources':all_resources,
+            'relate_courses':relate_courses,
+            'video':video
+        })
+
+   修改xadmin中课程章节下视频的url为七牛云视频的外链地址
+
+  在course-play.html中新增的div中修改视频的url，与遍历视频for语句中的href链接:
+<source src="{{ video.url }}" type='video/mp4'>
+<a target="_blank" href='{% url 'course:video_play' video.id %}' class="J-media-item studyvideo">{{ video.name }} ({{ video.learn_times }})
+
+
+
+{% block title %}{{ video.name }} - 慕学在线网{% endblock %}
+面包屑中选取该课程名称<li><a href="{% url 'course:course_detail' course.id %}">{{ course.name }}</a>></li>
+再选取视频的名称：<li>{{ video.name }}</li>
+
+ 
+  在course-video.html中把遍历章节视频的href引用修改如下：
+<a target="_blank" href='{% url "course:video_play" video.id %}' class="J-media-item studyvideo">{{ video.name }} ({{ video.learn_times }})
+
+  
+  云端存储平台：
+登录‘七牛云’，对象存储 --> 新建存储空间 --> 内容管理 --> 上传文件 -->操作（复制外链）
+
+
+
+
+
+9>.第9章 课程讲师功能实现
+
+  将teacher-list.html与teacher-detail.html拷贝至...,  将面包屑以上老规矩拷贝并修改标题与面包屑内容，再将content内容重写：
+
+  在organization\urls.py中新建url，MxOnline\urls.py中的命名空间org直接调用之
+from .views import TeacherListView
+
+#     讲师列表页
+    url(r'^teacher/list/$',TeacherListView.as_view(),name='teacher_list'),
+    
+  在organization\views.py中新建TeacherListView讲师列表类并从数据库中取出所有讲师：
+
+class TeacherListView(View):
+    """
+    课程讲师列表页
+    """
+    def get(self,request):
+        all_teachers = Teacher.objects.all()
+        return render(request,"teachers-list.html",{
+            "all_teachers":all_teachers,
+        })
+
+  在teachers-list.html中遍历所有讲师对象：
+……
+
+  实现分页功能：
+把OrgView课程机构类中的分页功能拷贝至TeacherListView课程讲师列表类中：
+class TeacherListView(View):
+    """
+    课程讲师列表页
+    """
+    def get(self,request):
+        all_teachers = Teacher.objects.all()
+
+        # 按人气排序
+        sort = request.GET.get('sort',"")
+        if sort:
+            if sort == "hot":
+                all_teachers = all_teachers.order_by("-click_nums")
+
+        sorted_teacher = Teacher.objects.all().order_by("-click_nums")[:3]
+
+
+        # pure-pagination对课程机构进行分页
+        try:
+            page = request.GET.get('page', 1)
+        except PageNotAnInteger:
+            page = 1
+
+        # Provide Paginator with the request object for complete querystring generation
+
+        p = Paginator(all_teachers, 1, request=request)  # 其中per_page表示每页显示的个数
+
+        teachers = p.page(page)
+        return render(request,"teachers-list.html",{
+            "all_teachers":teachers,
+            "sorted_teacher":sorted_teacher,
+            "sort":sort
+        })
+
+把org-list.html中的名为pageturn的div替换到teachers-list.html中，
+
+
+
+  实现课程详情页：
+老规矩继承等拷贝，面包屑修改如下，content老规矩：
+<li><a href="{% url 'org:teacher_list' %}">授课讲师</a>></li>
+<li>讲师详情</li>
+
+
+  在organization\urls.py中配置详情页的url：
+from .views import TeacherListView, TeacherDetailView
+
+    # 讲师详情页
+    url(r'^teacher/detail/(?P<teacher_id>\d+)/$', TeacherDetailView.as_view(), name="teacher_detail"),
+
+
+  在organization\views.py中添加TeacherDetailView讲师详情类：
+class TeacherDetailView(View):
+    def get(self,request,teacher_id):
+        teacher = Teacher.objects.get(id=int(teacher_id))
+        all_courses = Course.objects.filter(teacher=teacher)
+        # 讲师排行
+        sorted_teacher = Teacher.objects.all().order_by('-click_nums')[:3]
+        return render(request, "teacher-detail.html", {
+            "teacher":teacher,
+            "all_courses":all_courses,
+            "sorted_teacher":sorted_teacher
+        })
+
+  在teachers-list.html中为teacher-detail.html做引用路径：
+<a href="{% url "org:teacher_detail" teacher.id %}">
+
+
+  修改teacher-detail.html中动态数据略
+
+  课程的跳转：
+<a href="{% url 'course:course_detail' teacher_course.id %}">
+
+  机构的跳转：
+<a href="{% url 'org:org_home' teacher.org.id %}">
+
+  讲师的跳转：
+<a href="{% url 'org:teacher_detail' hot_teacher.id %}">
+
+  讲师与授课机构的收藏，在teacher-detail.html中重写custom_js块：
+{% block custom_js %}
+    <script type="text/javascript">
+        //收藏分享
+        function add_fav(current_elem, fav_id, fav_type){
+            $.ajax({
+                cache:false,
+                type:"POST",
+                url:"{% url "org:add_fav" %}",
+                data:{'fav_id':fav_id, 'fav_type':fav_type},
+                async:true,
+                beforeSend:function(xhr,settings){
+                    xhr.setRequestHeader("X-CSRFToken","{{ csrf_token }}");
+                },
+                success:function(data){
+                    if(data.status == 'fail'){
+                        if(data.msg == '用户未登录'){
+                            window.location.href='/login/';
+                        }else{
+                            alert(data.msg)
+                        }
+                    }else if(data.status == 'success'){
+                        current_elem.text(data.msg)
+                    }
+                }
+            })
+        }
+
+        $('#jsLeftBtn').on('click',function(){
+            add_fav($(this),{{ teacher.id }},3);
+        });
+
+        $('#jsRightBtn').on('click',function(){
+            add_fav($(this),{{ teacher.org.id }},2);
+        });
+
+    </script>
+{% endblock %}
+
+  显示收藏的固定状态：
+          has_teacher_faved = False
+        if UserFavorite.objects.filter(user = request.user, fav_type = 3, fav_id = teacher.id):
+            has_teacher_faved = True
+
+        has_org_faved = False
+        if UserFavorite.objects.filter(user = request.user, fav_type = 2, fav_id = teacher.org.id):
+            has_org_faved = True
+
+{% if has_teacher_faved %}已收藏{% else %}收藏{% endif %}
+
+<a class="btn" id="jsRightBtn">{% if has_org_faved %}已收藏{% else %}收藏{% endif %}</a>
+
+
+
+
+
+
+
+
+10>.第10章 个人中心和全局搜索功能实现
+  老规矩把index.html继承自base.html并重写js块：
+
+{% block custom_js %}
+    <script type="text/javascript" src="../js/index.js"></script>
+{% endblock %}
+
+  实现首页导航栏的跳转：
+								<a href="{% url 'course:course_list' %}">公开课					<a href="{% url 'org:teacher_list' %}">授课教师</a>
+<a href="{% url 'org:org_list' %}">授课机构</a>
+
+  实现导航栏标签的选中：
+  在organization\views.py中添加如下current_nav 标识字段，然后传入teacher-list.html，在其父类base.html作选中验证：
+current_nav = "teacher"
+
+<li {% if current_nav == 'teacher' %}class="active"{% endif %}>
+
+  若采取上述方式作验证的弊端是会在多个view下频繁创建标识字段，因此采用url路径标识字段会一劳永逸：
+<li {% if request.path|slice:'7' == '/course' %}class="active"{% endif %}>
+<li {% if request.path|slice:'12' == '/org/teacher' %}class="active"{% endif %}>
+<li {% if request.path|slice:'9' == '/org/list' %}class="active"{% endif %}><a href="{% url 'org:org_list' %}">授课机构</a></li>
+
+
+  在organization\urls中为了防止url路径标识的冲突，修改机构讲师的url，teacher --> org_teacher：
+url(r'^org_teacher/(?P<org_id>\d+)/$', OrgTeacherView.as_view(), name="org_teacher"),
+
+  
+  实现全局搜索功能：
+CTRL+H在PC中进行全局搜索，import Q
+  在courses\views.py\CourseListView中添加如下：
+from django.db.models import Q 
+
+ # 课程搜索
+        search_keywords = request.GET.get('keywords','')
+        if search_keywords:
+            all_courses = all_courses.filter(Q(name__icontains=search_keywords)|Q(desc__icontains=search_keywords)|Q(detail__icontains=search_keywords))  # 相当于SQL语句中的like
+
+  在deco-common.js中已经定义了search_click顶部搜索栏搜索方法：
+function search_click(){
+    var type = $('#jsSelectOption').attr('data-value'),
+        keywords = $('#search_keywords').val(),
+        request_url = '';
+    if(keywords == ""){
+        return
+    }
+    if(type == "course"){
+        request_url = "/course/list?keywords="+keywords
+    }else if(type == "teacher"){
+        request_url = "/org/teacher/list?keywords="+keywords
+    }else if(type == "org"){
+        request_url = "/org/list?keywords="+keywords
+    }
+    window.location.href = request_url
+}
+
+
+  在courses\views.py\OrgView中添加如下：
+from django.db.models import Q 
+        # 课程搜索
+        search_keywords = request.GET.get('keywords', '')
+        if search_keywords:
+            all_orgs = all_orgs.filter(
+                Q(name__icontains=search_keywords) | Q(desc__icontains=search_keywords)
+                    )  # 相当于SQL语句中的like
+
+
+  在courses\views.py\TeacherListView中添加如下：
+        # 课程讲师搜索
+        search_keywords = request.GET.get('keywords','')
+        if search_keywords:
+            all_teachers = all_teachers.filter(Q(name__icontains=search_keywords)|Q(work_company__icontains=search_keywords)|Q(work_position__icontains=search_keywords))  # 相当于SQL语句中的like
+
+
+
+  个人中心页面开发：
+将usercenter开头的html文件拷贝至Template中，新建一个用于继承的usercenter-base.html, 将usercenter-base.htlm中的内容拷贝其中，删除主体内容，增加css 与 <script>标签中的js块
+{% block custom_css %}{% endblock %}
+{% block custom_js %}{% endblock %}
+
+面包屑与右边主体包围block
+
+加载静态文件引用路径{% load staticfiles %}
+然后修改静态文件路径
+
+  在usercenter-info.html中继承usercenter-base.html
+
+  在MxOnline\urls.py中添加个人中心的引用路径：
+   # 课程相关url配置
+    url(r'^users/', include('users.urls', namespace="users")),  # namespace命名空间可以准确的定位，避免name的重复冲突
+
+
+  在users目录下新建urls.py, 输入如下代码:
+from django.conf.urls import url, include
+from .views import UserinfoView
+
+urlpatterns = [
+    # 用户信息
+    url(r'^info/$', UserinfoView.as_view(), name= "user_info"),
+]
+
+  在users\views.py中新建UserinfoView用户信息类并继承utils下的login判断类LoginRequiredMixin ：
+from utils.mixin_utils import LoginRequiredMixin
+
+class UserinfoView(LoginRequiredMixin, View):
+    """
+    用户个人信息
+    """
+    def get(self, request):
+        return render(request, 'usercenter-info.html',{})
+
+
+  在usercenter-info.html中修改如下:
+修改用户头像<img width="100" height="100" class="js-img-show" id="avatarShow" src="{{ MEDIA_URL }}{{ request.user.image }}"/>
+修改昵称<input type="text" name="nick_name" id="nick_name" value="{{ request.user.nick_name }}" maxlength="10">
+性别<label>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<input type="radio"  name="gender" value="male" {% if request.user.gender == 'male' %}checked="checked"{% endif %} >男</label>	<label>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<input type="radio" name="gender" value="female" {% if request.user.gender == 'female' %}checked="checked"{% endif %}>女</label>
+地址<input type="text" name="address" id="address" placeholder="请输入你的地址" value="{{ request.user.address }}" maxlength="10">
+手机号<input type="text" name="mobile" id="mobile" placeholder="请输入你的手机号码" value="{{ request.user.mobile|default_if_none:'' }}" maxlength="10">
+邮箱<input class="borderno" type="text" name="email" readonly="readonly" value="{{ request.user.email }}"/>
+
+  修改头像：
+  在users\urls.py中添加用户上传头像的url:
+    # 用户头像上传
+    url(r'^image/upload/$', UserinfoView.as_view(), name="image_upload"),
+
+  先在forms.py中定义一个继承forms.ModelForm的文件类用于快捷地保存上传的图片:
+from .models import UserProfile
+
+class UploadImageForm(forms.ModelForm):
+    class Meta:
+        model = UserProfile
+        fields = ['image']
+
+  在users\views.py中添加UploadImageView上传图片类，并在if语句处打上断点进行调试：
+class UploadImageView(LoginRequiredMixin, View):
+    """
+    用户修改头像
+    """
+    def post(self, request):
+        image_form = UploadImageForm(request.POST, request.FILES)
+        if image_form.is_valid():
+            image = image_form.cleaned_data['image']
+            request.user.image = image
+            request.user.save()
+
+  在usercenter-info.html中的form表单中只有添加enctype = 'multipart/form-data'才能实现用户上传头像的功能，action路径为users下的image_upload：
+<form class="clearfix" id="jsAvatarForm" enctype="multipart/form-data" autocomplete="off" method="post" action="{% url 'users:image_upload' %}" target='frameFile'>
+其中<input type="file" name="image" id="avatarUp" class="js-img-up"/>的name的值必须与userprofile中的字段名image相一致
+为了通过django的安全机制还需添加{% csrf_token %}
+
+  调试时鼠标悬停于request.FILES，其中的images变量会传入image_form对象的cleaned_data中
+
+  简化UploadImageView如下,运用modelform的instance实例化传进来的model对象UserProfile：
+class UploadImageView(LoginRequiredMixin, View):
+    """
+    用户修改头像
+    """
+    def post(self, request):
+        image_form = UploadImageForm(request.POST, request.FILES, instance=request.user)
+        if image_form.is_valid():
+	image_form.save()
+                return HttpResponse('{"status":"success"}',content_type='application/json')
+        else:
+                return HttpResponse('{"status":"fail"}',content_type='application/json')
+
+
+  修改密码：
+在users\views.py仿照ModifyPwdView修改密码类创建UpdatePwdView更新密码类：
+import json
+class UpdatePwdView(View):
+    """
+    个人中心修改用户密码
+    """
+    def post(self,request):
+        modify_form = ModifyPwdForm(request.POST)
+        if modify_form.is_valid():
+            pwd1 = request.POST.get("password1","")
+            pwd2 = request.POST.get("password2","")
+            if pwd1 != pwd2:
+                return HttpResponse('{"status":"fail","msg":"密码不一致"}', content_type='application/json')
+            user = request.user
+            user.password = make_password(pwd2)
+            user.save()
+
+            return HttpResponse('{"status":"success"}',content_type='application/json')
+        else:
+            return HttpResponse(json.dumps(modify_form.errors), content_type='application/json')
+
+
+  
+
+  在users\urls.py总添加用户个人中心修改密码的url：
+from .views import UserinfoView, UploadImageView, UpdatePwdView
+
+    # 用户个人中心修改密码
+    url(r'^update/pwd/$', UpdatePwdView.as_view(), name="update_pwd"),
+
+  在usercenter-base.html中有id名为jsResetPwdForm的form, 为了通过django安全机制，在末尾加上{% csrf_token %}
+
+  在deco-user.js中有对应上面form的js动态代码，因为不是内嵌<script>文件，而是外链js文件所以url的配置路径不能采用{% url ‘’%}的格式，而写成url:"/users/update/pwd/", 内容如下：
+    $('#jsResetPwdBtn').click(function(){
+        $.ajax({
+            cache: false,
+            type: "POST",
+            dataType:'json',
+            url:"/users/update/pwd/",
+            data:$('#jsResetPwdForm').serialize(),
+            async: true,
+            success: function(data) {
+                if(data.password1){
+                    Dml.fun.showValidateError($("#pwd"), data.password1);
+                }else if(data.password2){
+                    Dml.fun.showValidateError($("#repwd"), data.password2);
+                }else if(data.status == "success"){
+                    Dml.fun.showTipsDialog({
+                        title:'提交成功',
+                        h2:'修改密码成功，请重新登录!',
+                    });
+                    Dml.fun.winReload();
+                }else if(data.msg){
+                    Dml.fun.showValidateError($("#pwd"), data.msg);
+                    Dml.fun.showValidateError($("#repwd"), data.msg);
+                }
+            }
+        });
+    });
+
+  在users\views.py中的modify_form对象处打上断点进行调试，当输入2个数字密码时网页会聚焦报错
+
+  实现首页登录后显示登录用户的状态，将org_base.html中的内容拷贝并编辑父类base.html如下：
+{% if request.user.is_authenticated %}
+      <div class='middle' ...>
+{% else %}
+      <div class = 'top' ...>
+{% endif %}
+
+  在base.html中修改动态数据如下：
+<dd>{{ user.username }}<img class="down fr" src="{% static '/static/images/top_down.png' %}"/></dd>
+<dt><img width="20" height="20" src="{{ MEDIA_URL }}{{ request.user.image }}"/></dt>
+<dt><img width="80" height="80" src="{{ MEDIA_URL }}{{ request.user.image }}"/></dt>
+
+<h2>{{ request.user.nick_name }}</h2>
+<p>{{ request.user.username }}</p>
+
+<a class="personcenter fl" href="{% url 'users:user_info' %}">进入个人中心</a>
+
+  修改完后，再把base.html的内容覆盖原来的org_base.html与usercenter-base.html
+
+
+  修改邮箱：
+1.实现发送邮箱验证码：
+  在users\urls.py中添加：
+from .views import UserinfoView, UploadImageView, UpdatePwdView, SendEmailCodeView
+
+    # 发送邮箱验证码
+    url(r'^sendemail_code/$', SendEmailCodeView.as_view(), name="sendemail_code"),
+
+
+  在users\models.py中修改EmailVerifyRecord邮箱验证码类，新增验证码类型（修改邮箱）：
+    send_type = models.CharField(verbose_name=u"验证码类型",choices=(("register",u"注册"),("forget",u"找回密码"),("update_email",u"修改邮箱")),max_length=10)
+
+  在utils\email_send.py中新增判断语句如下：
+    elif send_type == "update_email":
+        email_title = "慕学在线网修改邮箱验证码"
+        email_body = "你的邮箱验证码为：{0}".format(code)
+
+        send_status = send_mail(email_title, email_body, EMAIL_FROM, [email])
+        if send_status:
+            pass
+
+
+  在users\views.py中新建SendEmailCodeView发送邮箱验证码类：
+class SendEmailCodeView(LoginRequiredMixin, View):
+    """
+    发送邮箱验证码
+    """
+    def get(self,request):
+        email = request.GET.get('email','')
+        if UserProfile.objects.filter(email = email):
+            return HttpResponse('{"email":"邮箱已经存在"}',content_type="application/json")
+        send_register_email(email,"update_email")
+        return HttpResponse('{"status":"success"}', content_type="application/json")
+
+  在deco-user.js中的changeEmailSubmit修改邮箱提交函数中修改url路径如下：
+url:"/users/sendemail_code/ ",
+
+  在usercenter-base.html中的搜索jsChangeEmailForm并添加{% csrf_token %}，然后用户提交后会将其带入后端。
+
+  给views.py中的SendEmailCodeView发送邮箱验证码类的email对象打上断点进行调试
+
+2.实现修改邮箱：
+  在users\urls.py中添加url如下：
+from .views import UpdateEmailView
+
+    #修改邮箱
+    url(r'^update_email/$', UpdateEmailView.as_view(), name="update_email"),
+
+  在users\views.py中新建UpdateEmailView修改个人邮箱类：
+class UpdateEmailView(LoginRequiredMixin, View):
+    """
+    修改个人邮箱
+    """
+    def post(self, request):
+        email = request.POST.get('email','')
+        code = request.POST.get('code','')
+
+        existed_records = EmailVerifyRecord.objects.filter(email = email, code = code, send_type = "update_email")
+        if existed_records:
+            user = request.user
+            user.email = email
+            user.save()
+            return HttpResponse('{"status":"success"}', content_type="application/json")
+        else:
+            return HttpResponse('{"email":"验证码出错"}',content_type="application/json")
+
+  修改deco-user.js中的changeEmailSubmit个人资料邮箱修改函数的url，而usercenter-base.html中搜索jsChangeEmailForm后的所在form也加了{% csrf_token %}：
+        url:"/users/update_email/",
+
+
+  用户个人信息提交后的处理：
+  先在users\forms.py中添加判别用户信息合法性的modelform:
+class UserInfoForm(forms.ModelForm):
+    class Meta:
+        model = UserProfile
+        fields = ['nick_name','gender','birday','address','mobile']
+
+  在users\views.py中的UserinfoView用户个人信息类中重写post函数来处理用户的提交信息
+from .forms import UserInfoForm
+class UserinfoView(LoginRequiredMixin, View):
+      ……
+      def post(self,request):
+        user_info_form = UserInfoForm(request.POST, instance=request.user)
+        if user_info_form.is_valid():
+            user_info_form.save()
+  
+  在deco-user.js中的jsEditUserBtn保存个人资料函数中存在jsEditUserForm表单，则到usercenter-info.html中的$jsEditUserForm表单中添加{% csrf_token %}
+
+  在if语句打断点，然后前端地址为空时提交，鼠标悬停时有errors提示，以及django的form在cleaned_data中会自动对前端的date字段进行转换
+  
+  完善users\views.py中的UserinfoView用户个人信息类如下：
+        ……
+            return HttpResponse('{"status":"success"}', content_type="application/json")
+        else:
+            return HttpResponse(json.dumps(user_info_form.errors),content_type="application/json")
+
+
+  实现显示用户中心的我的课程：
+  对usercenter-mycourse.html老规矩，继承、重写。。。：
+
+  在users\urls.py中添加我的课程url:
+from .views import MyCourseView
+
+    # 我的课程
+    url(r'^mycourse/$', MyCourseView.as_view(), name="mycourse"),
+
+  在users\views.py中添加MyCourseView我的课程类：
+from operation.models import UserCourse
+
+class MyCourseView(LoginRequiredMixin, View):
+    """
+    我的课程
+    """
+    def get(self,request):
+        user_courses = UserCourse.objects.filter(user=request.user)
+        return render(request, 'usercenter-mycourse.html', {
+                "user_courses":user_courses,
+        })
+
+  在usercenter-base.html中添加引用链接：
+<li class="active2"><a href="{% url 'users:user_info' %}">个人资料</a></li>
+<li ><a href="{% url 'users:mycourse' %}">我的课程</a></li>
+
+  在usercenter-mycourse.html中对user_courses用户课程对象进行遍历取出：
+{% for user_course in user_courses %}
+       <div class="module1_5 box">
+               <a href="{% url 'course:course_detail' user_course.course.id %}">    {# 配置课程详情页的跳转 #}
+                       <img width="214" height="190" class="scrollLoading" src="{{ MEDIA_URL }}{{ user_course.course.image }}"/>
+               </a>
+               <div class="des">
+                       <a href="course-detail.html"><h2>{{ user_course.course.name }}</h2></a>
+                       <span class="fl">课时：<i class="key">{{ user_course.course.learn_times }}</i></span>
+                       <span class="fr">学习人数：{{ user_course.course.students }}</span>
+               </div>
+               <div class="bottom">
+                      <span class="fl">{{ user_course.course.course_org.name }}</span>
+                      <span class="star fr  notlogin" data-favid="15">{{ user_course.course.fav_nums }}</span>
+               </div>
+       </div>
+{% endfor %}
+
+  
+  实现显示用户中心的我的收藏：
+1.显示课程机构：
+对usercenter-fav-org.html老规矩，继承、重写。。。：
+
+  在users\urls.py中添加MyFavOrgView我收藏的课程机构类的引用url:
+from .views import MyCourseView, MyFavOrgView
+    # 我收藏的课程机构
+    url(r'^myfav/org/$', MyFavOrgView.as_view(), name="myfav_org"),
+
+  
+  在users\views.py中添加MyFavOrgView我收藏的课程机构类：
+from operation.models import UserCourse, UserFavorite
+from organization.models import CourseOrg
+
+  class MyFavOrgView(LoginRequiredMixin, View):
+    """
+    我收藏的课程机构
+    """
+    def get(self,request):
+        org_list = []
+        fav_orgs = UserFavorite.objects.filter(user=request.user, fav_type=2)
+        for fav_org in fav_orgs:
+            org_id = fav_org.fav_id
+            org = CourseOrg.objects.get(id=org_id)
+            org_list.append(org)
+        return render(request, 'usercenter-fav-org.html', {
+            "fav_orgs":fav_orgs,
+            "org_list":org_list
+        })
+
+  在user-center-fav-org.html中遍历用户喜爱的课程机构：
+{% load staticfiles %}
+
+{% for org in org_list %}
+     <div class="messages butler_list company company-fav-box">
+       <dl class="des fr">
+          <dt>
+                 <a href="{% url 'org:org_home' org.id %}">
+                        <img width="160" height="90" src="{{ MEDIA_URL }}{{ org.image }}"/>
+                 </a>
+          </dt>
+          <dd>
+              <h1><a href="{% url 'org:org_home' org.id %}">{{ org.name }}</a></h1>
+              <div class="pic fl" style="width:auto;">
+
+              <img src="{% static 'images/authentication.png' %}"/>
+
+              <img src="{% static 'images/gold.png' %}"/>
+
+              </div>
+              <span class="c8 clear">{{ org.address }}</span>
+              <div class="delete jsDeleteFav_org" data-favid="1"></div>
+           </dd>
+         </dl>
+       </div>
+{% endfor %}
+
+
+  在usercenter-base.html中修改我的收藏链接地址：
+<li ><a href="{% url 'users:myfav_org' %}">我的收藏</a></li>
+
+2.显示授课讲师：
+对usercenter-fav-teacher.html老规矩，继承、重写。。。：
+
+  为了显示课程数，在course模型存在teacher外键的基础上然后在teacher模型中定义获取课程数的函数：
+    def get_course_nums(self):
+        return self.course_set.all().count()
+
+  在users\urls.py中添加我收藏的授课讲师：
+from .views import MyCourseView, MyFavOrgView, MyFavTeacherView
+
+    # 我收藏的授课讲师
+    url(r'^myfav/teacher/$', MyFavTeacherView.as_view(), name="myfav_teacher"),
+
+  在users\views.py中添加MyFavTeacherView我的授课讲师类：
+class MyFavTeacherView(LoginRequiredMixin, View):
+    """
+    我收藏的授课讲师
+    """
+    def get(self,request):
+        teacher_list = []
+        fav_teachers = UserFavorite.objects.filter(user=request.user, fav_type=3)
+        for fav_techer in fav_teachers:
+            teacher_id = fav_techer.fav_id
+            teacher = Teacher.objects.get(id=teacher_id)
+            teacher_list.append(teacher)
+        return render(request, 'usercenter-fav-teacher.html', {
+            "fav_teachers":fav_teachers,
+            "teacher_list":teacher_list
+        })
+
+3.公开课程：
+  在users\urls.py中添加：
+from .views import MyCourseView, MyFavOrgView, MyFavTeacherView, MyFavCourseView
+
+    # 我收藏的课程
+    url(r'^myfav/course/$', MyFavCourseView.as_view(), name="myfav_course"),
+
+  在users\views.py中添加MyFavCourseView我收藏的课程类：
+from courses.models import Course
+
+class MyFavCourseView(LoginRequiredMixin, View):
+    """
+    我收藏的课程
+    """
+
+    def get(self, request):
+        course_list = []
+        fav_courses = UserFavorite.objects.filter(user=request.user, fav_type=1)
+        for fav_course in fav_courses:
+            course_id = fav_course.fav_id
+            course = Course.objects.get(id=course_id)
+            course_list.append(course)
+        return render(request, 'usercenter-fav-course.html', {
+            "fav_courses": fav_courses,
+            "course_list": course_list
+        })
+
+  实现右侧的删除收藏功能，需要指定当前喜爱课程、教师、机构等的id：
+<div class="delete jsDeleteFav_org" data-favid="{{ org.id }}"></div>
+
+<div class="delete jsDeleteFav_teacher" data-favid="{{ teacher.id }}"></div>
+
+<span class="delete-group fr jsDeleteFav_course" data-favid="{{ fav_course.id }}"></span>
+
+  在usercenter-base.html中有三段js代码用来处理删除收藏的课程、教师、机构：
+
+ $('.jsDeleteFav_course').on('click', function(){...});
+
+ $('.jsDeleteFav_teacher').on('click', function(){...});
+
+ $('.jsDeleteFav_org').on('click', function(){...});
+
+
+
+  实现用户中心我的消息功能：
+  在users\urls.py中添加我的消息url:
+# 我的消息
+    url(r'^mymessage/$', MymessageView.as_view(), name="mymessage"),
+
+  在users\views.py中添加MymessageView我的消息类，将organization\views.py中的分页功能拷贝到其中：
+from operation.models import UserCourse, UserFavorite, UserMessage
+from pure_pagination import Paginator,EmptyPage,PageNotAnInteger
+
+class MymessageView(LoginRequiredMixin, View):
+    """
+    我的消息
+    """
+    def get(self,request):
+        all_message = UserMessage.objects.filter(user=request.user.id)
+
+        # pure-pagination对个人消息进行分页
+        try:
+            page = request.GET.get('page', 1)
+        except PageNotAnInteger:
+            page = 1
+
+        # Provide Paginator with the request object for complete querystring generation
+
+        p = Paginator(all_message, 1, request=request)  # 其中per_page表示每页显示的个数
+
+        messages = p.page(page)
+        return render(request,'usercenter-message.html',{
+            "messages":messages,
+        })
+
+
+  在usercenter-base.html中配置我的消息引用路径：
+<a href="{% url 'users:mymessage' %}" style="position: relative;">
+       我的消息
+</a>
+
+  在usercenter-message.html中遍历message消息, 并将org-list.html中的分页功能覆盖其中:
+{% for message in messages.object_list %}
+       <div class="messages">
+              <div class="fr">
+                    <div class="top"><span class="fl time">{{ message.add_time }}</span><span class="fr btn foldbtn"></span></div>
+                    <p>
+                          {{ message.message }}
+                    </p>
+             </div>
+       </div>
+{% endfor %}
+
+  用户注册成功后可以发生一个用户提示消息，在users\views.py中的RegisterView注册类中于发生注册邮箱之前添加用户消息如下：
+            # 写入欢迎注册消息
+            user_message = UserMessage()
+            user_message.user = user_profile.id
+            user_message.message = "欢迎注册慕学在线网"
+            user_message.save()
+
+  
+  用户未读消息个数的小喇叭显示功能：
+  在users\models.py中的UserProfile用户类中添加获取用户未读消息数量的函数：
+    def unread_nums(self):
+        # 获取用户未读消息的数量
+        from operation.models import UserMessage
+        return UserMessage.objects.filter(user=self.id).count()
+
+  在base.html中的header小喇叭里取出用户未读数量：
+<div class="msg-num"><span id="MsgNum">{{ request.user.unread_nums }}</span></div>
+
+  用户点击小喇叭跳转到我的消息页面：
+全局搜索Ctrl+H(msg-num), 编辑href的地址如下：
+<a href="{% url 'users:mymessage' %}">
+<div class="msg-num"><span id="MsgNum">{{ request.user.unread_nums }}</span></div>
+</a>
+
+ 因为有多个被继承的父网页，所以全局搜索Ctrl+H --> msg-num进行全部替换：
+
+  实现只显示未读消息数，在users\views.py的MymessageView我的消息类中添加未读消息的已读操作：
+# 用户进入个人消息后清空未读消息的记录
+        all_unread_messages = UserMessage.objects.filter(user = request.user.id, has_read=False)
+        for unread_message in all_unread_messages:
+            unread_message.has_read = True
+            unread_message.save()
+
+  修改users\models.py中UserProfile用户类的获取用户未读消息量函数，对未读消息进行过滤：
+      def unread_nums(self):
+        # 获取用户未读消息的数量
+        from operation.models import UserMessage
+        return UserMessage.objects.filter(user=self.id, has_read=False).count()
+
+
+11>.第11章 首页、全局功能细节和404以及500页面配置
+  用户退出功能：
+  在users\urls.py中添加用户退出的url:
+from users.views import LoginView, LogoutView
+
+    url('^logout/$', LogoutView.as_view(), name="logout"),
+
+  在users\views.py中添加LogoutView用户退出类：
+from django.contrib.auth import authenticate, login, logout  {# 登出 #}
+from django.http import HttpResponse, HttpResponseRedirect  {# 重定向 #}
+
+class LogoutView(View):
+    """
+    用户登出
+    """
+    def get(self, request):
+        logout(request)
+        from django.core.urlresolvers import reverse
+        return HttpResponseRedirect(reverse("index"))
+
+  在base.html等父类中添加退出的引用：
+<a class="fr" href="{% url 'logout' %}">退出</a>
+
+  实现课程、讲师、机构等点击数的增1操作：
+  在courses\views.py中的CourseInfoView课程章节信息类中当用户点击我要学习后的学习人数加1：
+        course.students += 1
+        course.save()
+
+  在organization\views.py中的TeacherDetailView讲师详情类中添加点击数自增1的操作：
+        teacher.click_nums += 1
+        teacher.save()
+
+  在organization\views.py中的OrgHomeView机构首页类中添加点击数自增1的操作：
+        course_org.click_nums += 1
+        course_org.save()
+
+  实现用户收藏与取消收藏时对课程收藏人数的增减操作：
+  在organization\views.py中的AddFavView用户收藏与否类中，当删除收藏记录后按照收藏类型对当前类型的对象中收藏数作减1操作，为防止收藏数非负的情况发生，判断fav_nums小于0时置于0：
+            if int(fav_type) == 1:
+                course = Course.objects.get(id = int(fav_id))
+                course.fav_nums -= 1
+                if course.fav_nums < 0:
+                    course.fav_nums =0
+                course.save()
+            elif int(fav_type) == 2:
+                course_org = CourseOrg.objects.get(id = int(fav_id))
+                course_org.fav_nums -= 1
+                if course_org.fav_nums < 0:
+                    course_org.fav_nums =0
+                course_org.save()
+            elif int(fav_type) == 3:
+                teacher = Teacher.objects.get(id = int(fav_id))
+                teacher.fav_nums -= 1
+                if teacher.fav_nums < 0:
+                    teacher.fav_nums =0
+                teacher.save()
+
+  在organization\views.py中的AddFavView用户收藏与否类中，当增加收藏记录后按照收藏类型对当前类型的对象中收藏数作增1操作：
+                if int(fav_type) == 1:
+                    course = Course.objects.get(id=int(fav_id))
+                    course.fav_nums += 1
+                    course.save()
+                elif int(fav_type) == 2:
+                    course_org = CourseOrg.objects.get(id=int(fav_id))
+                    course_org.fav_nums += 1
+                    course_org.save()
+                elif int(fav_type) == 3:
+                    teacher = Teacher.objects.get(id=int(fav_id))
+                    teacher.fav_nums += 1
+                    teacher.save()
+
+  实现全局的‘首页’跳转，Ctrl+H全局搜索（index.html）,File mask (.html)
+将 href="index.html" 替换为 href="{% url 'index' %}"，另外顺便把个人中心的href改为{% url 'users:user_info' %}
+
+  
+
+  首页功能开发：
+  在users\views.py中添加IndexView首页类：
+class IndexView(View):
+    """
+    慕学在线网首页
+    """
+    def get(self,request):
+        return render(request,'index.html',{})
+
+  在MxOnline\urls.py中替换原来的静态url：
+from users.views import IndexView
+
+        url('^$',IndexView.as_view(),name="index"),
+
+  在users\views.py的IndexView首页类中分别取出Banner轮播图、公开课与课程机构；其中在公开课程中分为轮播课程与静态课程两类，所以在courses\models.py的Course类中添加is_banner字段加以区分，is_banner = models.BooleanField(default=False, verbose_name=u"是否轮播")：
+from .models import Banner
+
+    class IndexView(View):
+    """
+    慕学在线网首页
+    """
+    def get(self,request):
+        # 取出轮播图
+        all_banners = Banner.objects.al().order_by('index')
+        # 取出公开课程
+        courses = Course.objects.filter(is_banner=False)[:5]
+        banner_courses = Course.objects.filter(is_banner=True)[:3]
+        # 取出课程机构
+        course_orgs = CourseOrg.objects.all()[:15]
+        return render(request,'index.html',{
+            "all_banners":all_banners,
+            "courses":courses,
+            "banner_courses":banner_courses,
+            "course_orgs":course_orgs
+        })
+
+  在xadmin中用户信息内添加轮播图五张：
+标题：第一个
+轮播图：images/57a801860001c34b12000460.jpg
+访问地址：http://www.imooc.com
+顺序：1
+
+  在index.html中遍历all_banners所有的轮播图：
+{% for banner in all_banners %}
+    <li>
+          <a href="{{ banner.url }}">
+                 <img width="1200" height="478" src="{{ MEDIA_URL }}{{ banner.image }}" />
+          </a>
+    </li>
+{% endfor %}
+
+
+  在index.html中遍历banner_courses课程轮播图：
+{% for banner_course in banner_courses %}
+      <li>
+           <a href="{% url 'course:course_detail' banner_course.id %}">
+                   <img width="470" height="300" src="{{ MEDIA_URL }}{{ banner_course.image }}" />
+           </a>
+      </li>
+{% endfor %}
+
+  在index.html中遍历courses课程，注意class中存在动态的数值以实现css样式，for循环时需要动态添加数据：
+{% for course in courses %}
+      <div class="module1_{{ forloop.counter|add:2 }} box">    {# 动态添加数值，从3开始累加 #}
+              <a href="{% url 'course:course_detail' course.id %}">
+                     <img width="233" height="190" src="{{ MEDIA_URL }}{{ course.image }}"/>
+              </a>
+              <div class="des">
+                     <a href="{% url 'course:course_detail' course.id %}">
+                            <h2 title="django入门">{{ course.name }}</h2>
+                     </a>
+                     <span class="fl">难度：<i class="key">{{ course.get_degree_display }}</i></span>
+                     <span class="fr">学习人数：{{ course.students }}</span>
+              </div>
+              <div class="bottom">
+                     <span class="fl" title="慕课网">{{ course.course_org.name }}</span>
+                     <span class="star fr">{{ course.fav_nums }}</span>
+              </div>
+      </div>
+{% endfor %}
+
+
+  修改‘查看更多课程&机构’的href链接地址：
+<a class="more" href="{% url 'course:course_list' %}">查看更多课程 ></a>
+<a class="more" href="{% url 'org:org_list' %}">查看更多机构 ></a>
+
+  在index.html中遍历course_org课程机构，注意每隔5个循环就要使<li>元素的class=“five”，即当前的forloop.counter值是否能整除5：
+  当鼠标悬浮在课程机构上回显示指定内容，在organization\models.py中的CourseOrg课程机构类中添加tag字段：
+    tag = models.CharField(default="全国知名", max_length=10, verbose_name=u"机构标签")
+
+
+{% for org in course_orgs %}
+    <li class="{% if forloop.counter|divisibleby:5 %}five{% endif %}">
+           <a href="{% url 'org:org_home' org.id %}">
+                   <div class="company">
+                          <img width="184" height="100" src="{{ MEDIA_URL }}{{ org.image }}"/>
+                          <div class="score">
+                                <div class="circle">
+                                       <h2>{{ org.tag }}</h2>
+                                </div>
+                          </div>
+                   </div>
+                   <p><span class="key" title="{{ org.name }}">{{ org.name }}</span></p>
+            </a>
+     </li>
+{% endfor %}
+
+  隐藏问题的解决：重新登录后首页无法正常显示，原因是users\views.py\LoginView没有调用IndexView的循环数据，可以在验证用户成功后url重定向到index：
+将LoginView中的return render(request, "index.html")替换为return HttpResponseRedirect(reverse("index"))
+将from django.core.urlresolvers import reverse放入全局
+
+
+
+
+  配置全局的404未找到与500系统内部错误页面：
+404:
+  在MxOnline\urls.py中urlpatterns列表之下添加：
+#全局404页面配置
+handler404 = 'users.views.page_not_found'
+
+  在users\views.py中添加page_not_found页面未找到函数：
+def page_not_found(request):
+    # 全局404处理函数
+    from django.shortcuts import render_to_response
+    response = render_to_response('404.html',{})
+    response.status_code = 404
+    return response
+
+  把404与500页面拷贝到Template下，{% load staticfiles %} 修改引用路径略
+
+  使settings.py中的DEBUG = False ， ALLOWED_HOSTS = ['*']
+
+  而当DEBUG = False后会导致原来配置的static静态路径无效，需要另外配置静态文件处理函数类似于MEDIA:
+  在MxOnline\urls.py中配置静态文件处理函数：
+from MxOnline.settings import MEDIA_ROOT, STATIC_ROOT
+
+    url(r'^static/(?P<path>.*)/$',serve,{"document_root":STATIC_ROOT}),
+
+
+  在settings.py中添加STATIC_ROOT:
+STATIC_ROOT = os.path.join(BASE_DIR,'static')
+
+  当浏览器访问http://127.0.0.1:8000/info这个不存在的url时则显示404页面
+
+500:
+  在MxOnline\urls.py中urlpatterns列表之下添加：
+#全局500页面配置
+handler500 = 'users.views.page_error'
+
+  在users\views.py中添加page_error页面错误函数：
+def page_error(request):
+    # 全局500处理函数
+    from django.shortcuts import render_to_response
+    response = render_to_response('500.html',{})
+    response.status_code = 500
+    return response
+
+  在users\views.py\IndexView中输入print(1/0), 当浏览器访问http://127.0.0.1:8000/首页时则显示500页面
+
+
+
+
+
+
+12>.第12章 常见web攻击及防范
+1.sql注入攻击
+
+  在users\views.py中添加LoginUnsafeView登录不安全类：
+class LoginUnsafeView(View):
+    def get(self,request):
+        return render(request, "login.html", {})
+    def post(self,request):
+        user_name = request.POST.get("username", "")
+        pass_word = request.POST.get("password", "")
+
+        import MySQLdb
+        conn = MySQLdb.connect(host='127.0.0.1',user='root',passwd='123456',db='mxonline',charset='utf8')
+        cursor = conn.cursor()
+        sql_select = "select * from users_userprofile where email='{0}' and password='{1}'".format(user_name,pass_word)
+
+        result = cursor.execute(sql_select)
+        for row in cursor.fetchall():
+            # 查询到用户
+            pass
+        print('booby')
+
+  在MxOnline\urls.py中添加url如下并把原来的login引用注释掉并把handler500注释掉：
+    url('^login/$',LoginUnsafeView.as_view(),name="login"),
+
+  若在用户名中输入：' OR 1=1#
+  则sql_select的where语句由于1=1而成立，将会取出数据库中所有用户数据
+
+
+2.xss攻击（Cross Site Scripting）跨站脚本攻击的危害
+盗取各类用户账号，如用户网银账号、各类管理员账号，盗窃企业重要的商业资料，非法转账
+黑客的手脚将获取用户的cookie信息从而伪装成用户：
+http://www.bank.com/prodect/list/?name=<script>x=document.cookie;alert(x);</script>
+
+防范措施：尽量采用POST而非GET提交表单
+
+3.csrf攻击
+csrf跨站请求伪造（Cross-site request forgery）的危害
+
+用户信任并登陆某服务器，该服务器返回sessionid给用户，用户每次请求都会带上sessionid
+而当用户访问某危险服务器后，在没有登出前某服务器的情况下，这危险服务器就返回一个要求访问用户前某服务器的一个url进行转账等操作
+<img src=http://www.mybank.com/Transfer/toBankId=11&money=1000>
+
+
+13>.第13章 xadmin的进阶开发
+使settings.py下的DEBUG = True, 然后将自己配置的static静态文件处理函数注释掉
+
+  使用xadmin文件包的方式下，xadmin/plugins/auth中存在site.register(User, UserAdmin)即不是UserProfile与UserAdmin相注册，所以在users/adminx.py中:
+from xadmin.plugins.auth import UserAdmin
+from .models import EmailVerifyRecord, Banner, UserProfile
+
+class UserProfileAdmin(UserAdmin):
+    pass
+
+xadmin.site.register(UserProfile,UserProfileAdmin)
+
+然后在浏览器xadmin里，用户信息即可显示
+
+  在users\adminx.py中添加：
+from django.contrib.auth.models import User
+xadmin.site.unregister(User)
+
+  然后浏览器中xadmin中认证和授权栏中auth_user将消去
+
+
+  在xadmin/plugins/auth.py中复制def_form_layout函数至users/adminx.py中的UserProfileAdmin下进行重载：
+from xadmin.layout import Fieldset, Main, Side, Row
+
+class UserProfileAdmin(UserAdmin):
+    def get_form_layout(self):
+        if self.org_obj:
+            self.form_layout = (
+                Main(
+                    Fieldset('',
+                             'username', 'password',
+                             css_class='unsort no_title'
+                             ),
+                    Fieldset(_('Personal info'),
+                             Row('first_name', 'last_name'),
+                             'email'
+                             ),
+                    Fieldset(_('Permissions'),
+                             'groups', 'user_permissions'
+                             ),
+                    Fieldset(_('Important dates'),
+                             'last_login', 'date_joined'
+                             ),
+                ),
+                Side(
+                    Fieldset(_('Status'),
+                             'is_active', 'is_staff', 'is_superuser',
+                             ),
+                )
+            )
+        return super(UserAdmin, self).get_form_layout()
+
+  这个函数的内容即对应用户信息的详情页面
+
+
+  
+  在xadmin/plugins/auth.py中添加如下：
+from django.contrib.auth import get_user_model
+User = get_user_model()
+这样就实现了UserProfile与UserAdmin相注册（site.register(User, UserAdmin)）
+
+
+
+  在nav_cat中访问auth_permission用户权限表：
+django默认生成增删改查四种权限的类型
+
+  users_profile中有一个is_staff字段，表示是否是可登录xadmin后台管理系统的职员
+
+  xadmin中认证与授权里的权限是在创建model并同步数据库时自动添加的，每张数据表均对应增删改查这四项权限
+  xadmin中认证与授权里的组是为了统一对组内成员增减权限，大大提高工作效率，新增一个组后，在某用户详情页中添加该组后，则该用户拥有该组设置的权限
+
+
+  xadmin下拉列表图标配置：
+百度font awesome，下载最新版本，把fonts与css两个文件夹覆盖xadmin/static/xadmin/vendor/font-awesome下的旧版本文件
+然后在官网的图标库中选择图标，拷贝class的名称，然后在users\adminx.py的EmailVerifyRecordAdmin邮箱验证码管理类中添加如下：
+    model_icon = 'fa fa-address-book-o'
+（可能需要Ctrl+F5强制刷新网页）
+
+  
+  默认排序设置：
+  实现xadmin中课程按点击数或学习人数倒序排列，在courses\adminx.py的CourseAdmin课程管理类中添加排序代码，设置后右上角会显示三角以正反排序，另外在网页点击学习人数或点击数字段会临时排序：
+    ordering = ['-click_nums']
+
+  只读字段：
+  在课程里的点击数，收藏数，学习人数均为动态数据，不可手动修改，因此在courses\adminx.py的CourseAdmin课程管理类中添加只读域代码，如果需要隐藏某字段则添加exclude排除代码, 注意只读与排除这两个代码不能重名：
+       readonly_fields = ['fav_nums','students']
+       exclude = ['click_nums']
+
+  在xadmin网页中，添加课程时的课程机构外键为下拉列表，如果机构很多就造成下拉列表超长，因此采用搜索的方式，当有外键指向他，会以ajax方式加载，数据量过大时不致于重载所有数据，在organization\adminx.py的CourseOrgaAdmin课程机构管理类中添加如下：
+   relfield_style ='fk-ajax' 
+
+
+
+
+  自定义列表返回数据：
+  在xadmin网页的课程详情页中无法添加章节信息或课程资源等，因此在courses\adminx.py中添加LessonInline课程内联类与CourseResourceInline课程资源内联类，并在CourseAdmin课程管理类中引用：
+
+class LessonInline(object):
+    model = Lesson
+    extra = 0
+
+class CourseResourceInline(object):
+    model = CourseResource
+    extra = 0
+
+class CourseAdmin(object):
+    ……
+    inlines = [LessonInline, CourseResourceInline]
+
+
+  在xadmin网页的课程详情页中，有是否轮播字段，即同一个model需要注册两个管理器：
+  在courses\models.py中添加BannerCourse轮播课程类：
+
+class BannerCourse(Course):
+    class Meta:
+        verbose_name = "轮播课程"
+        verbose_name_plural = verbose_name
+        proxy = True  # 这样不会重新生成一张BannerCourse的数据表
+
+  在courses\adminx.py中对新建的轮播课程model进行注册，并在其中新建queryset查询集函数, 过滤轮播课程：
+from .models import Course,Lesson,Video,CourseResource,BannerCourse
+
+class BannerCourseAdmin(object):
+    list_display = ['name','desc','detail','degree','learn_times','students','fav_nums','image','click_nums','add_time']
+    search_fields = ['name','desc','detail','degree','students','fav_nums','image','click_nums']
+    list_filter = ['name','desc','detail','degree','learn_times','students','fav_nums','image','click_nums','add_time']
+    model_icon = 'fa fa-book'
+    ordering = ['-click_nums']
+    readonly_fields = ['fav_nums','students']
+    exclude = ['click_nums']
+    inlines = [LessonInline, CourseResourceInline]
+
+    def queryset(self):
+        qs = super(BannerCourseAdmin, self).queryset()
+        qs = qs.filter(is_banner = True)
+        return qs
+
+xadmin.site.register(BannerCourse,BannerCourseAdmin)
+
+
+  在courses\adminx.py中对CourseAdmin课程管理类新建queryset查询集函数，过滤非轮播课程：
+
+    def queryset(self):
+        qs = super(CourseAdmin, self).queryset()
+        qs = qs.filter(is_banner = False)
+        return qs
+
+
+
+  xadmin其他常见功能的使用：
+  在courses\adminx.py中的CourseAdmin课程管理类中添加可编辑列表：
+      list_editable = ['degree','desc']
+
+  把courses\models.py中的Course类中的get_lesson_nums获取课程章节数函数传入courses\adminx.py中的CourseAdmin课程管理类中的list_display列表展示，即可在页面显示课程章节数。在courses\models.py中的Course类中的get_lesson_nums获取课程章节数函数外添加get_lesson_nums.short_description = "章节数"，即可在网页显示函数调用的标题描述
+
+
+  在courses\models.py中的Course类中编写一个html跳转函数go_to，以跳转到其他网站：
+
+    def go_to(self):
+        from django.utils.safestring import mark_safe   #将html语言以文本显示
+        return mark_safe("<a href='http://www.projectedu.com'>跳转</a>")
+
+    go_to.short_description = "跳转"
+
+
+  在xadmin/plugins/refresh.py中有一个列表页定时刷新工具，将refresh_times = [] 拷贝至courses\adminx.py中的CourseAdmin课程管理类中并编写如下：
+
+    refresh_times = [3,5]  #表示3或5秒刷新一次，在页面中会多一个双追尾箭头图标
+
+
+  在courses\adminx.py中CourseAdmin课程管理类里添加save_models函数以在每次保存课程的时候统计课程机构的课程数：
+
+    def save_models(self):
+        # 在保存课程的时候统计课程机构的课程数
+        obj = self.new_obj
+        obj.save()
+        if obj.course_org is not None:
+            course_org = obj.course_org
+            course_org.course_nums = Course.objects.filter(course_org=course_org).count()
+            course_org.save()
+
+  obj.save()处打上断点，进行调试
+
+
+
+  xadmin插件开发：
+  集成富文本编辑器
+  官方文档：xadmin.readthedocs.io  --> Xadmin 插件制作
+  在github（有使用方法）上搜索django ueditor  或从https://github.com/twz915/DjangoUeditor3下载支持Python3的zip包
+或从我的百度云下载
+也可以把DjangoUeditor文件夹放于extra_apps目录下，这样可以省去下面的安装的步骤
+
+C:\Users\Administrator\Downloads\Compressed\DjangoUeditor-1.8.143\DjangoUeditor-1.8.143>workon mxonline
+
+(mxonline) C:\Users\Administrator\Downloads\Compressed\DjangoUeditor-1.8.143\DjangoUeditor-1.8.143>python setup.py install
+
+  在settings.py的INSTALLED_APPS中添加‘DjangoUeditor’,
+
+  在MxOnline\urls.py中添加富文本相关url:
+    # 富文本相关url
+    url(r'^ueditor/', include('DjangoUeditor.urls')),
+
+  把courses\models.py中Course类中的detail课程详情字段修改如下：
+from DjangoUeditor.models import UEditorField
+
+    detail = UEditorField(verbose_name=u"课程详情",width=600, height=300, imagePath="courses/ueditor/", filePath="courses/ueditor/",default='')
+
+  在xadmin\plugins下新建ueditor.py插件以自动识别UEdtorField字段，内容如下：
+
+import xadmin
+from xadmin.views import BaseAdminPlugin, CreateAdminView, ModelFormAdminView, UpdateAdminView
+from DjangoUeditor.models import UEditorField
+from DjangoUeditor.widgets import UEditorWidget
+from django.conf import settings
+
+
+class XadminUEditorWidget(UEditorWidget):
+    def __init__(self,**kwargs):
+        self.ueditor_options=kwargs
+        self.Media.js = None
+        super(XadminUEditorWidget,self).__init__(kwargs)
+
+class UeditorPlugin(BaseAdminPlugin):
+
+    def get_field_style(self, attrs, db_field, style, **kwargs):
+        if style == 'ueditor':
+            if isinstance(db_field, UEditorField):
+                widget = db_field.formfield().widget
+                param = {}
+                param.update(widget.ueditor_settings)
+                param.update(widget.attrs)
+                return {'widget': XadminUEditorWidget(**param)}
+        return attrs
+
+    def block_extrahead(self, context, nodes):
+        js = '<script type="text/javascript" src="%s"></script>' % (settings.STATIC_URL + "ueditor/ueditor.config.js")         #自己的静态目录
+        js += '<script type="text/javascript" src="%s"></script>' % (settings.STATIC_URL + "ueditor/ueditor.all.min.js")   #自己的静态目录
+        nodes.append(js)
+
+xadmin.site.register_plugin(UeditorPlugin, UpdateAdminView)
+xadmin.site.register_plugin(UeditorPlugin, CreateAdminView)
+
+  
+  在courses\adminx.py中CourseAdmin课程管理类中给detail字段添加指定的样式域为ueditor：
+    style_fields = {"detail":"ueditor"}
+
+  在xadmin/plugins/__init__.py中PLUGINS元组内添加新建的插件名'ueditor'，
+
+
+  在xadmin中添加一些的富文本信息，然后为了能在课程详情页面显示富文本信息，需要在course-detail.html中的‘{{course.detail}}’添加如下，以使默认转义的<即&lt实现不转义：
+{% autoescape off %}
+     {{ course.detail }}
+{% endautoescape %}
+
+
+  解决github下载慢的问题：
+解决方法时更改host文件，使该域名指向香港的服务器，更改C:\Windows\System32\drivers\etc\hosts文件，在文件中追加219.76.4.4 github-cloud.s3.amazonaws.com, 将域名指向该IP即可，
+最后执行ipconfig /flushdns命令，刷新 DNS 缓存。
+
+
+
+  excel导入插件：
+  在xadmin\plugins下新建excel.py如下内容：
+
+import xadmin
+from xadmin.views import BaseAdminPlugin, ListAdminView
+from django.template import loader
+
+
+# excel 导入
+class ListImportExcelPlugin(BaseAdminPlugin):
+    import_excel = False
+
+    def init_request(self, *args, **kwargs):
+        return bool(self.import_excel)
+
+    def block_top_toolbar(self, context, nodes):
+        nodes.append(loader.render_to_string('xadmin/excel/model_list.top_toolbar.import.html', context_instance=context))
+
+
+xadmin.site.register_plugin(ListImportExcelPlugin, ListAdminView)
+
+
+
+  为实现在页面显示‘导入’插件在courses\adminx.py中CourseAdmin课程管理类中添加如下：
+  import_excel = True
+
+  在xadmin\templates下新建excel目录，然后将model_list.top_toolbar.import.html拷贝其内：
+
+{% load i18n %}
+<div class="btn-group export">
+  <a class="dropdown-toggle btn btn-default btn-sm" data-toggle="dropdown" href="#">
+    <i class="icon-share"></i> 导入 <span class="caret"></span>
+  </a>
+  <ul class="dropdown-menu" role="menu" aria-labelledby="dLabel">
+      <li><a data-toggle="modal" data-target="#export-modal-import-excel"><i class="icon-circle-arrow-down"></i> 导入 Excel</a></li>
+  </ul>
+    <script>
+        function fileChange(target){
+//检测上传文件的类型
+            var imgName = document.all.submit_upload.value;
+            var ext,idx;
+            if (imgName == ''){
+                document.all.submit_upload_b.disabled=true;
+                alert("请选择需要上传的 xls 文件!");
+                return;
+            } else {
+                idx = imgName.lastIndexOf(".");
+                if (idx != -1){
+                    ext = imgName.substr(idx+1).toUpperCase();
+                    ext = ext.toLowerCase( );
+{#                    alert("ext="+ext);#}
+                    if (ext != 'xls' && ext != 'xlsx'){
+                        document.all.submit_upload_b.disabled=true;
+                        alert("只能上传 .xls 类型的文件!");
+ 
+                        return;
+                    }
+                } else {
+                    document.all.submit_upload_b.disabled=true;
+                    alert("只能上传 .xls 类型的文件!");
+                    return;
+                }
+            }
+ 
+        }
+    </script>
+    <div id="export-modal-import-excel" class="modal fade">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <form method="post" action="" enctype="multipart/form-data">
+              {% csrf_token %}
+          <div class="modal-header">
+            <button type="button" class="close" data-dismiss="modal" aria-hidden="true">×</button>
+            <h4 class="modal-title">导入 Excel</h4>
+          </div>
+          <div class="modal-body">
+               <input type="file" οnchange="fileChange(this)" name="excel" id="submit_upload">
+ 
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-default" data-dismiss="modal">{% trans "Close" %}</button>
+            <button class="btn btn-success" type="submit" id="submit_upload_b"><i class="icon-share"></i> 导入</button>
+          </div>
+          </form>
+        </div><!-- /.modal-content -->
+      </div><!-- /.modal-dalog -->
+    </div><!-- /.modal -->
+ 
+</div>
+
+
+  在courses\adminx.py中CourseAdmin课程管理类中重写post函数：
+    def post(self, request, *args, **kwargs):
+        #  导入逻辑
+        if 'excel' in request.FILES:   # 在if语句打上断点，导入xls文件调试
+            pass  # 此处是一系列的操作接口, 通过  request.FILES 拿到数据随意操作
+        return super(CourseAdmin, self).post(request, args, kwargs)  # 此返回值必须是这样
+
+  
+
+  在xadmin\__init__.py的PLUGINS中添加'excel',
+
+  
+ 
+14>.第14章 把项目部署上线
+在VMware中安装deepin 15.1如下网址：
+https://zhuanlan.zhihu.com/p/30926677
+
+在http://www.5sharing.com/ 下载最新版本的deepin
+
+  
+  安装nginx:
+sudo apt-get install nginx
+
+  为了使deepin在虚拟机中铺满显示，要右键桌面个性化中的显示，使分辨率与电脑的分辨率一致
+
+  查看进程：
+ps -ef|grep nginx
+
+  查看ip:
+ifconfig
+
+inet 192.168.0.103
+
+在浏览器中输入上方的ip
+  
+
+  安装mysql:
+sudo apt-get install mysql-server
+
+ps -aux|grep mysql
+
+查看mysql信息：
+sudo cat /etc/mysql/debian.cnf
+
+进入mysql修改root密码
+update mysql.user set plugin="mysql_native_password" where user="root";
+update mysql.user set authentication_string=password('123456') where user='root'and Host = 'localhost';
+
+输入exit，退出mysql, 重启数据库 ：sudo service mysql restart
+
+
+mysql卸载：
+mysql -V    -->  例如版本号为5.7.21 
+sudo apt-get autoremove --purge mysql-server-5.7
+sudo apt-get autoremove mysql-server
+sudo apt-get remove mysql-common 
+sudo dpkg -l |grep ^rc|awk '{print $2}' |sudo xargs dpkg -P 
+
+
+  用windows下的navicat连接deepin中的MySQL：
+sudo vim /etc/mysql/mysql.conf.d/mysqld.cnf
+
+将bind-address = 127.0.0.1   改为 0.0.0.0 即可连接windows下的navcat
+
+sudo service mysql restart
+
+ifconfig查看ip地址为192.168.0.100
+
+打开navcat，新建连接，把ip地址粘贴在连接名与主机这两处，但发现因为权限问题而连不上，则修改mysql权限, %表示所有的ip地址均可访问:
+GRANT ALL PRIVILEGES ON *.* TO 'root'@'%' IDENTIFIED BY '123456' WITH GRANT OPTION;
+FLUSH PRIVILEGES;
+
+连接成功后在其中新建mxonline的数据库，utf-8, utf-8-general-ci
+
+
+  安装virtualenv:
+先安装pip3: sudo apt install python3-pip
+sudo pip3 install virtualenv
+sudo pip3 install virtualenvwrapper
+
+上述工具装好后找不到mkvirtualenv命令，需要执行以下环境变量设置:
+
+1.创建目录用来存放虚拟环境
+mkdir $HOME/.virtualenvs
+2.在~/.bashrc中添加行：
+export WORKON_HOME=$HOME/.virtualenvs
+source /usr/local/bin/virtualenvwrapper.sh
+3.运行:
+source ~/.bashrc
+3.创建python虚拟环境
+mkvirtualenv [虚拟环境名称]
+mkvirtualenv -p python环境路径 [虚拟环境名称]
+workon [虚拟环境名称]
+4.退出虚拟环境 离开 deactivate
+5.删除(慎用)
+rmvirtualenv [虚拟环境名称]
+
+
+  Problem——workon：未找到命令
+
+解决办法：
+将source /usr/local/bin/virtualenvwrapper.sh添加到bashrc文件中：
+# 打开bashrc文件
+vim ~/.bashrc
+复制：source /usr/local/bin/virtualenvwrapper.sh到文件bashrc中
+重启终端或切换用户，现在就可以使用workon命令了
+
+
+
+
+  新建一个名为mxonline的虚拟环境，准备接收主机中的虚拟环境mxonline里的所有开发包：
+
+  在主机cmd下导出mxonline虚拟环境中的开发包：
+(mxonline) C:\Users\Administrator>pip freeze > requirements.txt
+
+拷贝C:\Users\Administrator\requirements.txt文件中所有的内容
+
+在虚拟主机deepin中cd到/mnt目录下再sudo vim requirements.txt, 然后右键粘贴
+接着pip install -r requirements.txt
+
+若出现mysql_config not found的错误，则输入sudo apt-get install libmysqlclient-dev, 然后继续上面的pip
+
+
+  uwsgi安装和启动：
+pip install uwsgi
+
+将windows下的Mxonline文件拷贝至/home/positever目录下，
+然后sudo cp -r /home/positever/MxOnline /mnt
+
+
+  测试uwsgi：
+(mxonline) positever@positever-PC:/mnt/MxOnline$ uwsgi --http :8000 --module MxOnline.wsgi
+或(mxonline) positever@positever-PC:/mnt/MxOnline/MxOnline$ uwsgi --http :8000 --module wsgi
+
+
+(mxonline) positever@positever-PC:/mnt/MxOnline$ python manage.py runserver 0.0.0.0:8000
+ifconfig的ip地址为：192.168.0.104
+在浏览器中访问http://192.168.0.104:8000/
+报错如下：
+Table 'mxonline.users_banner' doesn't exist
+原因是数据库为空
+
+  将windows中mxonline数据库的内容传输到deepin中的mxonline:
+
+  登录nginx配置教程网站：
+http://www.projectsedu.com/2017/08/15/centos7-%E4%B8%8B%E9%80%9A%E8%BF%87nginx-uwsgi%E9%83%A8%E7%BD%B2django%E5%BA%94%E7%94%A8/
+
+  nginx配置：
+(mxonline) positever@positever-PC:/mnt/MxOnline$ sudo mkdir conf
+(mxonline) positever@positever-PC:/mnt/MxOnline$ sudo vim uc_nginx.conf
+拷贝该网站的配置内容：
+把‘你的ip地址’替换为域名与主机ip，把media与static下‘你的目录’替换为 /mnt
+
+  将该配置文件加入到nginx的启动配置文件中, 把uc_nginx.conf拷贝到/etc/nginx/conf.d/下或者建立软连接
+  sudo cp uc_nginx.conf /etc/nginx/conf.d/
+或 sudo ln -s 你的目录/Mxonline/conf/nginx/uc_nginx.conf /etc/nginx/conf.d/
+
+  sudo service nginx restart
+
+  ps aux|grep nginx
+
+
+  拉取所有需要的static file 到同一个目录：
+当Django项目运行在线上的时候，需要关闭debug模式，那么Django设置中，静态文件路径配置将会失效, Django默认关闭debug模式，Django错误信息将不会返回给请求，setting中静态文件的设置将会自动失效, 
+
+sudo vim MxOnline/settings.py
+注释掉STATICFILES_DIRS并释放STATIC_ROOT
+
+sudo vim MxOnline/urls.py
+释放静态文件访问的处理函数，并from MxOline.settings import  STATIC_ROOT
+
+
+运行命令 python manage.py collectstatic
+
+  linux给目录赋权限：
+(mxonline) positever@positever-PC:/mnt/MxOnline$ sudo chmod -R 777 /mnt
+
+  通过配置文件启动uwsgi：
+(mxonline) positever@positever-PC:/mnt/MxOnline$ cd conf
+(mxonline) positever@positever-PC:/mnt/MxOnline/conf$ sudo vim uwsgi.ini
+拷贝该网站的配置内容：
+把 chdir路径改为 /mnt/MxOnline，virtualenv = /home/positever/.virtualenvs/mxonline
+
+查看所有隐藏文件：echo .[!.]*
+
+用uwsgi启动：
+uwsgi -i uwsgi.ini
+
+查看uwsgi所有的进程：
+ps aux|grep uwsgi
+
+重启uwsgi:
+pkill -f uwsgi
+
+
+  在C:\Windows\System32\drivers\etc\hosts文件下添加如下：
+192.168.0.104 www.positever.xyz
+
+
+  CentOS系统下关于nginx的访问权限的修改：
+sudo vim /etc/nginx/nginx.conf
+将user www-data改为 user root
+
+pkill -f nginx
+nginx
+
+sudo vim /etc/nginx/conf.d/uc_nginx.conf下的static路径需要修改目录权限即可访问
+
+
+
+
+
+
+
+
+
+
+
+
+  深度deepin解决联网问题：
+打开齿轮状的控制中心里的网络-- 创建PPPoE连接，输入用户名与密码后保存即可，最后需要插上网线
+
+  深度deepin解决下载速度缓慢的问题：
+sudo cp /etc/apt/sources.list /etc/apt/sources.list.bak
+sudo vim /etc/apt/sources.list
+将之前原来的内容注释掉，然后输入以下两行代码：
+deb http://mirrors.163.com/deepin/ unstable main contrib non-free
+deb-src http://mirrors.163.com/deepin/ unstable main contrib non-free
+最后一步，执行一条更新语句就OK：
+sudo apt-get update
+
+加一条很好用的网速测试软件 --- speedtest
+sudo apt-get install speedtest-cli
+下载完成后输入命令 speedtest 就可以查看网速啦
+
+
+
+  MxOnline/升级django2.0：
+https://github.com/liyaopinner/MxOnline/
+
+1. 安装依赖包
+    新装
+        pip install requests
+    重装
+        django-crispy-forms
+        django-formtools
+        django-import-export
+        django-simple-captcha
+        django-pure-pagination
+2. 拷贝django2分支下的xadmin和djangoueditor源码
+   
+3. 所有model的外键需要加上on_delete的行为 改为 on_delete=models.CASCADE
+
+4. from django.core.urlresolvers import reverse 全部改为 from django.urls import reverse
+
+5. url中关于include的地方全部改为 url(r'^course/', include(('courses.urls','courses'), namespace="course"))的模式
+
+6. 说明一下 urls.py中url(r'^captcha/', include('captcha.urls')), 一定不能加namespace也不能用上面的模式，保持原来模式就行了
+
+7. 将settings中的MIDDLEWARE_CLASSES 改为 MIDDLEWARE并删除'django.contrib.auth.middleware.SessionAuthenticationMiddleware' 这一行
+
+8. 课程中关于request.user.is_authenticated()中的地方要改为request.user.is_authenticated
